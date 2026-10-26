@@ -11,11 +11,11 @@ const World = (() => {
         const ch = def.rows[z][x];
         const prop = PROPS[ch] ? ch : null;
         const ground = ch === ',' ? 'mud' : ch === '=' ? 'road' : ch === 'o' ? 'crater' : 'grass';
-        const hx = (x - def.hill.cx) / def.hill.rx, hz = (z - def.hill.cz) / def.hill.rz;
-        tiles.push({ x, z, prop, ground, h: hx * hx + hz * hz <= 1 ? 1 : 0 });
+        const onHill = def.hills.some((H) => ((x - H.cx) / H.rx) ** 2 + ((z - H.cz) / H.rz) ** 2 <= 1);
+        tiles.push({ x, z, prop, ground, h: onHill ? 1 : 0 });
       }
     }
-    return { W, D, tiles, units: [] };
+    return { W, D, tiles, units: [], goal: def.goal || null };
   }
 
   const tile = (w, x, z) => (x < 0 || z < 0 || x >= w.W || z >= w.D ? null : w.tiles[z * w.W + x]);
@@ -61,7 +61,7 @@ const World = (() => {
   }
 
   function sightOf(w, u) {
-    return RULES.sight + (u.def.sight || 0) + (tile(w, u.x, u.z).h ? 1 : 0);
+    return RULES.sight + (u.sight != null ? u.sight : u.def.sight || 0) + (tile(w, u.x, u.z).h ? 1 : 0);
   }
 
   function canSee(w, u, p) {
@@ -92,8 +92,9 @@ const World = (() => {
   }
 
   // 길찾기 (다익스트라, 8방향, 대각선은 모서리 못 자름, 높이 바뀌면 +1)
+  // 땅굴(w.tunnels, 쥐만) 은 입구 ↔ 출구 1걸음. 벽 타기(u.climb) 는 높은 엄폐물 위를 지나가되 멈추지는 못함
   function reach(w, u, maxCost) {
-    const cost = new Map(), prev = new Map();
+    const cost = new Map(), prev = new Map(), pass = new Set();
     const key = (x, z) => z * w.W + x;
     const start = key(u.x, u.z);
     cost.set(start, 0);
@@ -103,18 +104,30 @@ const World = (() => {
       const [c, x, z] = open.shift();
       if (c > cost.get(key(x, z))) continue;
       const h0 = tile(w, x, z).h;
-      for (const [dx, dz] of DIRS8) {
+      const steps = DIRS8.map(([dx, dz]) => [dx, dz, 0]);
+      if (u.side === 'rat' && w.tunnels) for (const [a, b] of w.tunnels) {
+        if (a.x === x && a.z === z) steps.push([b.x - x, b.z - z, 1]);
+        if (b.x === x && b.z === z) steps.push([a.x - x, a.z - z, 1]);
+      }
+      for (const [dx, dz, tun] of steps) {
         const nx = x + dx, nz = z + dz;
-        if (!walkable(w, nx, nz)) continue;
+        const climbOver = u.climb && !tun && tile(w, nx, nz) && propOf(tile(w, nx, nz)) && propOf(tile(w, nx, nz)).cover === 2 && !(dx && dz);
+        if (!walkable(w, nx, nz) && !climbOver) continue;
+        if (tun) {
+          const nc = c + 1, k = key(nx, nz);
+          if (nc <= maxCost + 1e-6 && !unitAt(w, nx, nz) && (!cost.has(k) || nc < cost.get(k))) { cost.set(k, nc); prev.set(k, key(x, z)); open.push([nc, nx, nz]); }
+          continue;
+        }
         const w1 = walkable(w, x + dx, z), w2 = walkable(w, x, z + dz);
         if (dx && dz && (!w1 && !w2)) continue;
         const cornerPenalty = (dx && dz && (!w1 || !w2)) ? 0.35 : 0;
         const o = unitAt(w, nx, nz);
         if (o && o !== u) continue;
         const nt = tile(w, nx, nz);
-        const nc = c + (dx && dz ? RULES.diagCost : 1) + cornerPenalty + (nt && nt.h !== h0 ? RULES.climbCost : 0);
+        const nc = c + (dx && dz ? RULES.diagCost : 1) + cornerPenalty + (nt && nt.h !== h0 ? RULES.climbCost : 0) + (climbOver ? 1 : 0);
         if (nc > maxCost + 1e-6) continue;
         const k = key(nx, nz);
+        if (climbOver) pass.add(k);
         if (!cost.has(k) || nc < cost.get(k)) {
           cost.set(k, nc); prev.set(k, key(x, z)); open.push([nc, nx, nz]);
         }
@@ -127,7 +140,9 @@ const World = (() => {
       while (k !== start) { out.unshift({ x: k % w.W, z: Math.floor(k / w.W) }); k = prev.get(k); }
       return out;
     };
-    return { cost: (x, z) => cost.get(key(x, z)), path, keys: cost };
+    for (const k of pass) if (prev.has(k) && cost.get(k) === undefined) pass.delete(k);
+    const stops = new Map([...cost].filter(([k]) => !pass.has(k)));
+    return { cost: (x, z) => (pass.has(key(x, z)) ? undefined : cost.get(key(x, z))), path, keys: stops };
   }
 
   return { create, tile, propOf, unitAt, walkable, los, canSee, sightOf, coverAgainst, coverSides, reach, dist, DIRS4, DIRS8, sightBlocker };

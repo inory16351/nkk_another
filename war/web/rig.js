@@ -12,26 +12,34 @@ const Rig = (() => {
 
   // 종마다: 서 있는 키(리그 px) · 눈 위치(머리 그림 원본 좌표 × 0.5) · 눈 종류
   const SPECIES = {
-    rat: { tall: 470, eyes: { side: [[137.5, 64]], front: [[112.5, 64], [150, 64]] }, eyeR: 6, dot: true },
+    rat: { tall: 470, eyes: { side: [[137.5, 64]], front: [[112.5, 64], [150, 64]] }, eyeR: 6, dot: true, noExpr: [3, 4] },
     cat: { tall: 470, eyes: { side: [[139, 66.5]], front: [[118.5, 66], [152.5, 66]] }, eyeR: 7, dot: false },
   };
 
   const loaded = {};
+  // sp = 리그 이름 (rat · rat_sniper · rat_face3 · cat …). 종 = 앞 단어
   async function load(sp) {
     if (loaded[sp]) return loaded[sp];
     const data = window.RIGS[sp];
+    if (!data) return null;
+    const kind = sp.split('_')[0];
     const base = `../art/${sp}/`;
     const img = {};
     const jobs = [];
     for (const [vn, V] of Object.entries(data.views)) {
       img[vn] = {};
-      for (const [pn, p] of Object.entries(V.parts)) jobs.push(loadImage(base + p.img).then((im) => (img[vn][pn] = im)));
+      for (const [pn, p] of Object.entries(V.parts)) {
+        jobs.push(loadImage(base + p.img).then((im) => (img[vn][pn] = im)));
+        // 개체 머리 (모자 포함): parts/<시점>/head_f<n>.png
+        for (let f = 0; f < (p.faces || 0); f++) jobs.push(loadImage(`${base}parts/${vn}/head_f${f}.png`).then((im) => (img[vn]['head_f' + f] = im)));
+      }
+      if (V.crouch) jobs.push(loadImage(base + V.crouch.img).then((im) => (img[vn].crouch = im)));
     }
     await Promise.all(jobs);
     // 눈 옆 털 색 (표정 바꿀 때 점을 덮는 색)
     const fur = {};
     for (const vn of ['side', 'front']) {
-      const e = (SPECIES[sp].eyes[vn] || [])[0];
+      const e = (SPECIES[kind].eyes[vn] || [])[0];
       const head = img[vn] && img[vn].head;
       const P = data.views[vn] && data.views[vn].parts.head;
       if (!e || !head) continue;
@@ -39,13 +47,14 @@ const Rig = (() => {
       c.width = head.width; c.height = head.height;
       const g = c.getContext('2d');
       g.drawImage(head, 0, 0);
-      const px = g.getImageData(Math.round(e[0] - P.x + SPECIES[sp].eyeR * 2.2), Math.round(e[1] - P.y + 2), 1, 1).data;
+      let px = [122, 94, 72];
+      try { px = g.getImageData(Math.round(e[0] - P.x + SPECIES[kind].eyeR * 2.2), Math.round(e[1] - P.y + 2), 1, 1).data; } catch (err) { /* file:// 에선 못 읽음 */ }
       fur[vn] = `rgb(${px[0]},${px[1]},${px[2]})`;
     }
     const cuts = {};
-    const A = (window.ART || {})[sp] || {};
+    const A = (window.ART || {})[kind] || {};
     await Promise.all(Object.entries(A).map(([n, a]) => loadImage('../art/out/' + a.img).then((im) => (cuts[n] = { ...a, im }))));
-    return (loaded[sp] = { data, img, fur, cuts, sp });
+    return (loaded[sp] = { data, img, fur, cuts, sp, kind });
   }
 
   // ── 동작: (보기, 시간, 상태) → 각도 · 루트 ──
@@ -150,8 +159,9 @@ const Rig = (() => {
 
   // R = load() 결과, (x, y) = 발 밑 화면 자리, h = 화면 키
   // o = { view, flip, st, t, hide: {부위:1}, face: 'hit'|'attack'|null, tint, alpha }
+  // o.faceIdx = 개체 얼굴 번호 (병종 리그의 head_f<n> 파츠)
   function draw(ctx, R, x, y, h, o) {
-    const sp = SPECIES[R.sp];
+    const sp = SPECIES[R.kind];
     const k = h / sp.tall;
     // 통그림 컷이 정해졌으면 그것만
     if (o.cut && R.cuts[o.cut]) {
@@ -166,7 +176,33 @@ const Rig = (() => {
       return null;
     }
     const V = R.data.views[o.view];
+    // 앞 · 뒤 웅크림: 웅크린 몸 그림 + 목에 머리 파츠 (숨쉬기 · 맞으면 움찔)
+    const B = o.baseR || R; // 머리 · 웅크림을 가진 병종 기본 리그
+    // 웅크린 몸: 병종 것 → 없으면 같은 종 기본 리그 것 (머리는 늘 병종 것)
+    const CB = B.data.views[o.view].crouch ? B : loaded[R.kind] && loaded[R.kind].data.views[o.view].crouch ? loaded[R.kind] : B;
+    const C = CB.data.views[o.view].crouch, st = o.st || {};
+    if (C && CB.img[o.view].crouch && (st.crouch || 0) > 0.55 && st.death == null) {
+      const br = Math.sin((o.t || 0) * 2.2 + (st.seed || 0));
+      const hv = C.head || o.view; // 머리 파츠 시점
+      const hd = B.data.views[hv].parts.head, him = (o.faceIdx != null && B.img[hv]['head_f' + o.faceIdx]) || B.img[hv].head;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(o.flip ? -k : k, k);
+      ctx.translate(-V.ground[0] - (st.hit || 0) * 6, -V.ground[1]);
+      if (o.alpha != null) ctx.globalAlpha = o.alpha;
+      ctx.drawImage(CB.img[o.view].crouch, C.x, C.y + br * 1.2, C.w, C.h);
+      ctx.translate(C.neck[0], C.neck[1] + br * 1.6 + (st.hit || 0) * 4);
+      ctx.rotate(rad(br * 0.8 - (st.hit || 0) * 6));
+      ctx.translate(-hd.pivot[0], -hd.pivot[1]);
+      if (o.tint) ctx.filter = o.tint;
+      ctx.drawImage(him, hd.x, hd.y, hd.w, hd.h);
+      ctx.filter = 'none';
+      if (o.face && !(SPECIES[R.kind].noExpr || []).includes(o.faceIdx)) drawFace(ctx, B, hv, o.face);
+      ctx.restore();
+      return null;
+    }
     const P = pose(o.view, o.st || {}, o.t || 0);
+
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(o.flip ? -k : k, k);
@@ -179,10 +215,14 @@ const Rig = (() => {
       const p = V.parts[n];
       if (!p || (o.hide && o.hide[n])) continue;
       ctx.setTransform(M[n]);
+      // 머리: 개체 얼굴(o.faceIdx) 파츠가 있으면 그것 (병종 모자를 쓴 채로 그려 둔 그림)
+      const im = n === 'head' && o.faceIdx != null && (R.img[o.view]['head_f' + o.faceIdx] || (B.img[o.view] && B.img[o.view]['head_f' + o.faceIdx])) || R.img[o.view][n];
+      const prost = o.prost && ((o.prost.includes('arm') && n === 'arm') || (o.prost.includes('leg') && (n === 'shinN' || n === 'legR')));
       if (o.tint && n === 'head') ctx.filter = o.tint;
-      ctx.drawImage(R.img[o.view][n], p.x, p.y, p.w, p.h);
-      if (o.tint && n === 'head') ctx.filter = 'none';
-      if (n === 'head' && o.face) drawFace(ctx, R, o.view, o.face);
+      if (prost) ctx.filter = n === 'arm' ? 'grayscale(1) brightness(0.85) contrast(1.3)' : 'sepia(1) saturate(1.6) brightness(0.62)';
+      ctx.drawImage(im, p.x, p.y, p.w, p.h);
+      if ((o.tint && n === 'head') || prost) ctx.filter = 'none';
+      if (n === 'head' && o.face && !(SPECIES[R.kind].noExpr || []).includes(o.faceIdx)) drawFace(ctx, R, o.view, o.face);
     }
     ctx.restore();
     return { M, V };
@@ -190,7 +230,7 @@ const Rig = (() => {
 
   // 눈 점 표정: 점을 털색으로 덮고 다른 모양으로
   function drawFace(ctx, R, view, face) {
-    const sp = SPECIES[R.sp];
+    const sp = SPECIES[R.kind];
     const eyes = sp.eyes[view];
     if (!eyes) return;
     const r = sp.eyeR;
