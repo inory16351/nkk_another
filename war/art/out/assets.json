@@ -286,17 +286,22 @@
   "far": {
    "img": "backdrop/far.png",
    "w": 1536,
-   "h": 268
+   "h": 225
   },
-  "mid": {
-   "img": "backdrop/mid.png",
+  "hills": {
+   "img": "backdrop/hills.png",
    "w": 1536,
-   "h": 274
+   "h": 161
   },
-  "near": {
-   "img": "backdrop/near.png",
+  "field": {
+   "img": "backdrop/field.png",
    "w": 1536,
-   "h": 262
+   "h": 210
+  },
+  "front": {
+   "img": "backdrop/front.png",
+   "w": 1536,
+   "h": 248
   }
  }
 }

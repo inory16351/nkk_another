@@ -115,37 +115,49 @@ def main():
         A['terrain'] = {}
         for i, name in enumerate(TERRAIN):
             cx, cy = i % 3, i // 3
-            t = im.crop((cx * W // 3 + 2, cy * H // 2 + 2, (cx + 1) * W // 3 - 2, (cy + 1) * H // 2 - 2)).resize((256, 256), Image.LANCZOS)
+            # 둑 칸은 위 8% 를 깎음 (윗칸 길 그림이 칸 경계를 넘어 내려와 있음)
+            top = cy * H // 2 + (H // 2 * 8 // 100 if name == 'cliff' else 2)
+            t = im.crop((cx * W // 3 + 2, top, (cx + 1) * W // 3 - 2, (cy + 1) * H // 2 - 2)).resize((256, 256), Image.LANCZOS)
             t.save(os.path.join(OUT, 'terrain', name + '.png'))
             A['terrain'][name] = {'img': f'terrain/{name}.png', 'w': 256, 'h': 256}
         print('terrain', len(TERRAIN))
-    f = os.path.join(SRC, 'backdrop.png')
+    # 배경 층 (소품과 같은 그림체, 위→아래 4줄): 먼 도시 · 먼 언덕 · 맵 바로 뒤 들판 · 앞 가림
+    # 줄 경계는 마젠타만 있는 가로줄로 찾음. backdrop.png(예전 3줄)는 안 씀
+    f = os.path.join(SRC, 'layers.png')
     if os.path.exists(f):
-        rgba = key_magenta(Image.open(f))
-        # 철조망 · 풀 사이 좁은 틈에 남은 분홍 번짐: 분홍기 있는 픽셀은 지우고 테두리 1px 깎음
-        src = np.asarray(Image.open(f).convert('RGB')).astype(np.int32)
-        pinkish = (src[..., 0] - src[..., 1] > 40) & (src[..., 2] - src[..., 1] > 40)
-        a = rgba[..., 3].copy()
-        a[pinkish] = 0
-        a = np.where(ndimage.binary_erosion(a > 128, iterations=1), a, 0).astype(np.uint8)
-        rgba[..., 3] = a
-        H = rgba.shape[0]
-        os.makedirs(os.path.join(OUT, 'backdrop'), exist_ok=True)
+        # 연기 · 철조망 · 풍차 날개처럼 마젠타와 섞인 반투명 부분: 무채색 그림이 마젠타 위에 겹쳤다고 보고 풀어냄
+        # (key_magenta 는 옅게 섞인 연기를 불투명 보라로 남기고, 분홍기 지우기는 가는 철조망을 통째로 지웠음)
+        src = np.asarray(Image.open(f).convert('RGB')).astype(np.float32)
+        m = np.clip(np.minimum(src[..., 0], src[..., 2]) - src[..., 1], 0, 255)
+        alpha = 1.0 - m / 255.0
+        alpha = np.clip((alpha - 0.1) / 0.9, 0, 1)  # 배경 마젠타의 잡티 걷기
+        mag = np.array([255.0, 0.0, 255.0])
+        rgb = (src - (1.0 - alpha)[..., None] * mag) / np.maximum(alpha, 0.05)[..., None]
+        rgb = np.clip(np.where(alpha[..., None] > 0.02, rgb, 0), 0, 255)
+        rgba = np.dstack([rgb, alpha * 255.0]).astype(np.uint8)
+        filled = (rgba[..., 3] > 40).mean(axis=1) > 0.02
+        runs, y = [], 0
+        while y < len(filled):
+            if filled[y]:
+                s = y
+                while y < len(filled) and filled[y]:
+                    y += 1
+                if y - s > 60:
+                    runs.append((s, y))
+            y += 1
+        names = ['far', 'hills', 'field', 'front']
+        if len(runs) != len(names):
+            raise SystemExit(f'layers.png 줄 {len(runs)}개 (4개여야 함): {runs}')
+        out = os.path.join(OUT, 'backdrop')
+        os.makedirs(out, exist_ok=True)
+        for old in os.listdir(out):
+            os.remove(os.path.join(out, old))
         A['backdrop'] = {}
-        for i, name in enumerate(['far', 'mid', 'near']):
-            strip = rgba[i * H // 3:(i + 1) * H // 3]
-            ys = np.nonzero((strip[..., 3] > 40).any(axis=1))[0]
-            strip = strip[ys.min():ys.max() + 1] if len(ys) else strip
-            if name == 'near':
-                # 가까운 실루엣은 밝기로 3톤만 (풀 끝 색 번짐 없애고 더 평평하게)
-                strip = strip.copy()
-                lum = strip[..., :3].astype(np.float32).mean(axis=2)
-                tones = np.array([[46, 40, 28], [62, 54, 36], [80, 70, 46]], np.uint8)
-                idx = np.digitize(lum, [55, 75])
-                strip[..., :3] = tones[idx]
-            Image.fromarray(np.ascontiguousarray(strip), 'RGBA').save(os.path.join(OUT, 'backdrop', name + '.png'))
+        for name, (y0, y1) in zip(names, runs):
+            strip = np.ascontiguousarray(rgba[y0:y1])
+            Image.fromarray(strip, 'RGBA').save(os.path.join(out, name + '.png'))
             A['backdrop'][name] = {'img': f'backdrop/{name}.png', 'w': strip.shape[1], 'h': strip.shape[0]}
-        print('backdrop 3')
+        print('backdrop', len(names))
     json.dump(A, open(os.path.join(OUT, 'assets.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     with open(os.path.join(OUT, 'assets.js'), 'w', encoding='utf-8') as fh:
         fh.write('window.ART = %s;\n' % json.dumps(A, ensure_ascii=False))

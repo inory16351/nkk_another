@@ -1,13 +1,15 @@
-// 쥐 전쟁 시뮬 — 화면 (돈스타브식 기울인 탑뷰 + 평평한 그림 레이어) · 효과 · 입력 · 소리
-// Q / E = 카메라 90° 회전. 세계 좌표(x, z) → 회전 좌표(rx, rz) → 화면. 그림(소품 · 병사)은 늘 정면을 보는 판때기.
-const TW = 72, TD = 44, EL = 30; // 칸 가로 · 칸 깊이(화면 세로) · 높이 1 의 화면 px
-const UNIT_H = 118; // 서 있는 병사 화면 키 (줌 1)
+// 쥐 전쟁 시뮬 — 화면 (돈스타브식 낮은 시점 + 가짜 원근 + 겹겹이 쌓은 평평한 그림 층) · 효과 · 입력 · 소리
+// Q / E = 카메라 90° 회전. 세계 좌표(x, z) → 회전 좌표(rx, rz) → 평면 판 px → 원근 → 화면. 그림(소품 · 병사)은 늘 정면을 보는 판때기.
+// 원근은 맵에 고정 (카메라를 옮겨도 사다리꼴 모양은 그대로, 대신 배경 층들이 서로 다른 속도로 움직임)
+const TW = 72, TD = 34, EL = 26; // 칸 가로 · 칸 깊이(평면 판 세로) · 높이 1 의 px. TD 가 작을수록 시점이 낮음
+const UNIT_H = 118; // 서 있는 병사 화면 키 (줌 1, 맨 앞 줄)
+const FAR = 0.68;   // 맵 맨 뒤 줄의 크기 배율 (맨 앞 줄 = 1)
 
 const View = (() => {
   const cv = document.getElementById('cv');
   const ctx = cv.getContext('2d');
   let W = 0, H = 0, DPR = 1;
-  const cam = { x: 0, y: 0, z: 1.15, tx: null, ty: null };
+  const cam = { x: 0, y: 0, z: 1.0, tx: null, ty: null };
   const tweens = [];
   const fx = [];      // 위에 그리는 효과 (화면-세계 좌표)
   const stains = [];  // 바닥 핏자국 · 그을음
@@ -36,8 +38,40 @@ const View = (() => {
   }
   const dirR = (dx, dz) => (rot === 1 ? [-dz, dx] : rot === 2 ? [-dx, -dz] : rot === 3 ? [dz, -dx] : [dx, dz]);
   const dimsR = () => (rot % 2 ? [G.world.D, G.world.W] : [G.world.W, G.world.D]);
-  // 세계 (x, z, 높이) → 화면-세계 px. d = 깊이(정렬용)
-  function P(x, z, h = 0) { const [rx, rz] = toR(x, z); return { x: (rx + 0.5) * TW, y: (rz + 0.5) * TD - h * EL, d: rz }; }
+  // ── 가짜 원근: 평면 판 (fx, fy) → 화면-세계 px. 앞 끝(fy = nearY)은 1배, 뒤로 갈수록 F/(F + 거리) 로 작아짐 ──
+  // 세로 자리는 배율을 적분한 값이라 줄 사이 간격도 같이 좁아짐. 회전하면 맵 가로 · 세로가 바뀌므로 다시 계산
+  const persp = { cx: 0, nearY: 1, F: 1, rot: -1 };
+  function setPersp() {
+    const [RW, RD] = dimsR();
+    persp.cx = (RW * TW) / 2; persp.nearY = RD * TD; persp.F = (RD * TD * FAR) / (1 - FAR); persp.rot = rot;
+  }
+  const scaleAt = (fy) => persp.F / (persp.F + persp.nearY - fy);
+  const projY = (fy) => persp.nearY - persp.F * Math.log((persp.F + persp.nearY - fy) / persp.F);
+  function proj(fx, fy, up = 0) { const s = scaleAt(fy); return { x: persp.cx + (fx - persp.cx) * s, y: projY(fy) - up * s, s }; }
+  function unproj(X, Y) {
+    const dz = persp.F * (Math.exp((persp.nearY - Y) / persp.F) - 1);
+    const s = persp.F / (persp.F + dz);
+    return { fx: persp.cx + (X - persp.cx) / s, fy: persp.nearY - dz, s };
+  }
+  // 세계 (x, z, 높이) → 화면-세계 px + 그 자리 크기 배율 s. d = 깊이(정렬용)
+  function P(x, z, h = 0) { const [rx, rz] = toR(x, z); const p = proj((rx + 0.5) * TW, (rz + 0.5) * TD, h * EL); p.d = rz; return p; }
+  // 원근 전 평면 판 자리 (바닥 그림을 굽는 데만)
+  function Pf(x, z) { const [rx, rz] = toR(x, z); return { x: (rx + 0.5) * TW, y: (rz + 0.5) * TD }; }
+  // 화면-세계 y → 깊이 (회전 좌표 rz)
+  const depthAt = (y) => unproj(persp.cx, y).fy / TD - 0.5;
+  // 칸 윗면 사다리꼴 [왼위, 오위, 오아래, 왼아래] (안쪽 여백 inset px)
+  function tileQuad(t, inset = 0) {
+    const [rx, rz] = toR(t.x, t.z), up = t.h * EL;
+    const x0 = rx * TW + inset, x1 = (rx + 1) * TW - inset, y0 = rz * TD + inset, y1 = (rz + 1) * TD - inset;
+    return [proj(x0, y0, up), proj(x1, y0, up), proj(x1, y1, up), proj(x0, y1, up)];
+  }
+  function quadPath(q) { ctx.beginPath(); ctx.moveTo(q[0].x, q[0].y); for (let i = 1; i < 4; i++) ctx.lineTo(q[i].x, q[i].y); ctx.closePath(); }
+  // 위 · 아래 변이 가로인 사다리꼴 안에 점이 있나
+  function inQuad(q, x, y) {
+    if (y < q[0].y || y > q[3].y) return false;
+    const k = (y - q[0].y) / Math.max(1e-6, q[3].y - q[0].y);
+    return x >= q[0].x + (q[3].x - q[0].x) * k && x <= q[1].x + (q[2].x - q[1].x) * k;
+  }
   const tileH = (x, z) => { const t = World.tile(G.world, Math.round(x), Math.round(z)); return t ? t.h : 0; };
   function unitHeight(u) {
     const x0 = Math.floor(u.px), z0 = Math.floor(u.pz);
@@ -45,19 +79,42 @@ const View = (() => {
     const h00 = tileH(x0, z0), h10 = tileH(x0 + 1, z0), h01 = tileH(x0, z0 + 1), h11 = tileH(x0 + 1, z0 + 1);
     return (h00 * (1 - a) + h10 * a) * (1 - b) + (h01 * (1 - a) + h11 * a) * b;
   }
-  const foot = (u) => { const p = P(u.px, u.pz, unitHeight(u)); p.y += 6; return p; };
+  const foot = (u) => { const p = P(u.px, u.pz, unitHeight(u)); p.y += 6 * p.s; return p; };
   const camMatrix = () => new DOMMatrix([cam.z * DPR, 0, 0, cam.z * DPR, (W / 2 - (cam.x + shx) * cam.z) * DPR, (H / 2 - (cam.y + shy) * cam.z) * DPR]);
   function screenToWorld(mx, my) { return { x: (mx - W / 2) / cam.z + cam.x, y: (my - H / 2) / cam.z + cam.y }; }
-  function tileRect(t) { const [rx, rz] = toR(t.x, t.z); return [rx * TW, rz * TD - t.h * EL]; }
+  // 칸 고르기: 윗면 사다리꼴, 언덕이면 남쪽 옆면도. 앞(아래) 줄 · 높은 칸이 이김
   function pickTile(mx, my) {
     const p = screenToWorld(mx, my);
-    let best = null, bd = -1;
+    let best = null, bd = -999;
     for (const t of G.world.tiles) {
-      const [x0, y0] = tileRect(t);
-      const d = toR(t.x, t.z)[1] + t.h * 0.5;
-      if (p.x >= x0 && p.x < x0 + TW && p.y >= y0 && p.y < y0 + TD && d > bd) { best = t; bd = d; }
+      const [rx, rz] = toR(t.x, t.z);
+      const q = tileQuad(t);
+      let hit = inQuad(q, p.x, p.y), face = false;
+      if (!hit && t.h > 0) {
+        const [xs, zs] = fromR(rx, rz + 1);
+        const south = World.tile(G.world, xs, zs);
+        if (!south || south.h < t.h) {
+          const bot = [q[3], q[2], proj(rx * TW + TW, (rz + 1) * TD), proj(rx * TW, (rz + 1) * TD)];
+          hit = face = inQuad([bot[0], bot[1], bot[2], bot[3]], p.x, p.y);
+        }
+      }
+      if (hit) {
+        const d = rz * 10 + (t.h > 0 ? 5 : 0) + (face ? 2 : 0);
+        if (d > bd) { best = t; bd = d; }
+      }
     }
     return best;
+  }
+
+  function clampCam() {
+    if (!G.world) return;
+    const [RW, RD] = dimsR();
+    const nearL = proj(0, RD * TD).x, nearR = proj(RW * TW, RD * TD).x;
+    const padX = Math.max(TW * 1.2, (W * 0.22) / cam.z);
+    const top = projY(0) - Math.max(TD * 1.0, (H * 0.15) / cam.z);
+    const bottom = Math.max(top, projY(RD * TD) - (H * 0.3) / cam.z);
+    cam.x = Math.max(nearL - padX, Math.min(nearR + padX, cam.x));
+    cam.y = Math.max(top, Math.min(bottom, cam.y));
   }
 
   // 병사 그림 방향: 세계 방향을 카메라 기준으로 돌려 앞 · 옆 · 뒤 고름
@@ -93,7 +150,7 @@ const View = (() => {
     if (!G.world) return;
     // 지금 화면 가운데의 세계 점을 기억 → 회전 후 같은 점을 가운데로
     // 화면-세계 점 → 세계 칸 좌표 (높이는 무시: 언덕 위 자국은 조금 어긋날 수 있음)
-    const remap = (x, y) => fromR(x / TW - 0.5, y / TD - 0.5);
+    const remap = (x, y) => { const f = unproj(x, y); return fromR(f.fx / TW - 0.5, f.fy / TD - 0.5); };
     const c = remap(cam.tx != null ? cam.tx : cam.x, cam.ty != null ? cam.ty : cam.y);
     // 바닥 자국 · 조각은 바닥 자리(gy 또는 y)로 옮기고 높이 차이는 그대로
     const items = [...stains, ...gibs, ...fx.filter((f) => f.x != null)].map((o) => {
@@ -101,6 +158,7 @@ const View = (() => {
       return { o, w: remap(o.x, base), up: base - o.y };
     });
     rot = (rot + dir + 4) % 4;
+    setPersp();
     for (const { o, w, up } of items) {
       const p = P(w[0], w[1]);
       o.x = p.x;
@@ -114,40 +172,93 @@ const View = (() => {
   }
 
   // ── 바닥 (회전마다 한 번 그려 둠) ──
-  function pattern(g, name, scale) {
+  // 바닥 무늬는 낮은 시점이라 세로로 눌러 깜 (squash). 언덕 옆면(cliff)은 서 있는 면이라 그대로
+  function pattern(g, name, scale, squash = name !== 'cliff') {
     const p = g.createPattern(IM['ter_' + name], 'repeat');
-    p.setTransform(new DOMMatrix().scale(scale));
+    p.setTransform(new DOMMatrix().scale(scale, scale * (squash ? 0.72 : 1)));
     return p;
+  }
+  // 평면 판 그림 src (픽셀 (sx, sy) = 판 (ox + sx·kx, oy + sy·ky)) 을 가로 띠로 잘라 원근 사다리꼴로 다시 그림
+  // fyMin 위로는 버림. 결과 { c, x, y } = 화면-세계 px 자리
+  function warp(src, ox, oy, kx, ky, fyMin = -Infinity) {
+    const fy0 = Math.max(oy, fyMin), fy1 = oy + src.height * ky;
+    const fxL = ox, fxR = ox + src.width * kx;
+    const xs = [proj(fxL, fy0).x, proj(fxL, fy1).x, proj(fxR, fy0).x, proj(fxR, fy1).x];
+    const xMin = Math.min(...xs), xMax = Math.max(...xs), yTop = projY(fy0), yBot = projY(fy1);
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(xMax - xMin) + 2; c.height = Math.ceil(yBot - yTop) + 2;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    const step = Math.max(1, Math.round(2 / ky)); // 띠 하나 ≈ 판 2px
+    for (let sy = Math.max(0, Math.floor((fy0 - oy) / ky)); sy < src.height; sy += step) {
+      const n = Math.min(step, src.height - sy);
+      const a = oy + sy * ky, b = a + n * ky, s = scaleAt((a + b) / 2);
+      const y0 = projY(a) - yTop, y1 = projY(b) - yTop;
+      g.drawImage(src, 0, sy, src.width, n, persp.cx + (fxL - persp.cx) * s - xMin, y0, src.width * kx * s, y1 - y0 + 0.6);
+    }
+    return { c, x: xMin, y: yTop };
   }
   function buildGround() {
     const w = G.world;
     const [RW, RD] = dimsR();
-    const PAD = 6 * TW;
+    const PX = 16 * TW, PY = 6 * TW; // 옆 여백은 넓게: 원근으로 뒤 줄이 좁아져도 화면 옆까지 땅이 이어지게
     const c = document.createElement('canvas');
-    c.width = RW * TW + PAD * 2; c.height = RD * TD + PAD * 2;
+    c.width = RW * TW + PX * 2; c.height = RD * TD + PY * 2;
     const g = c.getContext('2d');
-    g.translate(PAD, PAD);
-    // 맵 밖: 어둡게 이어지는 들판 (맵 윗줄보다 위는 비워 둠 → 뒤 배경 층이 보임)
-    g.fillStyle = pattern(g, 'wet', 0.9);
-    g.fillRect(-PAD, -TD * 0.6, c.width, c.height);
-    g.fillStyle = 'rgba(30,26,20,0.35)';
-    g.fillRect(-PAD, -TD * 0.6, c.width, c.height);
-    g.fillStyle = '#5b5338';
-    g.beginPath(); g.moveTo(-PAD, -TD * 0.6);
-    for (let x = -PAD; x <= RW * TW + PAD; x += 40) g.lineTo(x, -TD * 0.6 - 6 - Math.abs(Math.sin(x * 0.013) * 14));
-    g.lineTo(RW * TW + PAD, -TD * 0.6 + 4); g.lineTo(-PAD, -TD * 0.6 + 4); g.closePath(); g.fill();
+    g.translate(PX, PY);
+    // 맵 밖: 조금 어두운 들판이 이어지고, 맵 들판은 가장자리를 흐리게 깎아 얹음 (판때기 테두리 없음)
+    // TOP 위로는 땅을 안 그림 → 뒤 배경 층(능선 · 울타리)이 비침
+    const TOP = -TD * 1.4;
     g.fillStyle = pattern(g, 'grass', 0.8);
-    roundRect(g, -8, -8, RW * TW + 16, RD * TD + 16, 26); g.fill();
+    g.fillRect(-PX, TOP, c.width, c.height);
+    g.fillStyle = pattern(g, 'wet', 0.9);
+    g.globalAlpha = 0.45; // 맵 밖은 같은 풀밭에 어두운 들판을 반쯤 섞음 → 경계 없이 조금 어둡게
+    g.fillRect(-PX, TOP, c.width, c.height);
+    g.globalAlpha = 1;
+    const field = document.createElement('canvas');
+    field.width = c.width; field.height = c.height;
+    const f = field.getContext('2d');
+    f.translate(PX, PY);
+    f.fillStyle = pattern(f, 'grass', 0.8);
+    f.fillRect(-PX, TOP, c.width, c.height);
+    f.globalCompositeOperation = 'destination-in';
+    f.filter = `blur(${TW * 0.5}px)`;
+    f.fillStyle = '#000';
+    f.fillRect(-TW * 0.5, TOP, RW * TW + TW, RD * TD - TOP + TD * 0.5);
+    f.filter = 'none';
+    g.drawImage(field, -PX, -PY);
     let seed = 7;
     const rr = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     g.fillStyle = pattern(g, 'dry', 0.8);
-    for (let i = 0; i < 14; i++) blob(g, rr() * RW * TW, rr() * RD * TD, 50 + rr() * 70, 26 + rr() * 30, rr);
+    g.globalAlpha = 0.55; // 마른 풀 얼룩은 옅게 → 풀밭에 스며들게
+    for (let i = 0; i < 18; i++) blob(g, (rr() * (RW + 2) - 1) * TW, rr() * (RD + 1) * TD, 50 + rr() * 70, 26 + rr() * 30, rr);
+    g.globalAlpha = 1;
     for (const t of w.tiles) {
-      const p = P(t.x, t.z);
+      const p = Pf(t.x, t.z);
       if (t.ground === 'mud') { g.fillStyle = pattern(g, 'mud', 0.7); blob(g, p.x, p.y, TW * 0.8, TD * 0.8, rr); }
-      if (t.ground === 'road') { g.fillStyle = pattern(g, 'road', 0.6); roundRect(g, p.x - TW / 2 - 4, p.y - TD / 2 + 4, TW + 8, TD - 8, 14); g.fill(); }
     }
-    for (const t of w.tiles) if (t.ground === 'crater') { const p = P(t.x, t.z); crater(g, p.x, p.y); }
+    // 길: 이웃 길 칸 쪽으로는 끝까지 이어 그린 모양을 흐리게 → 끊김 없는 한 줄기 (회전해도)
+    const isRoad = (rx, rz) => { if (rx < 0 || rz < 0 || rx >= RW || rz >= RD) return false; const [x, z] = fromR(rx, rz); return World.tile(w, x, z).ground === 'road'; };
+    const road = document.createElement('canvas');
+    road.width = c.width; road.height = c.height;
+    const rg = road.getContext('2d');
+    rg.translate(PX, PY);
+    rg.filter = 'blur(4px)';
+    rg.fillStyle = '#000';
+    for (let rz = 0; rz < RD; rz++) for (let rx = 0; rx < RW; rx++) {
+      if (!isRoad(rx, rz)) continue;
+      const l = isRoad(rx - 1, rz) ? 0 : TW * 0.12, r = isRoad(rx + 1, rz) ? 0 : TW * 0.12;
+      const u = isRoad(rx, rz - 1) ? 0 : TD * 0.16, d = isRoad(rx, rz + 1) ? 0 : TD * 0.16;
+      rg.fillRect(rx * TW + l, rz * TD + u, TW - l - r, TD - u - d);
+    }
+    rg.filter = 'none';
+    rg.globalCompositeOperation = 'source-in';
+    const roadPat = pattern(rg, 'road', 0.6);
+    if (rot % 2) roadPat.setTransform(new DOMMatrix().scale(0.6).rotate(90)); // 길이 화면 세로로 서면 바퀴 자국도 세로로
+    rg.fillStyle = roadPat;
+    rg.fillRect(-PX, -PY, road.width, road.height);
+    g.drawImage(road, -PX, -PY);
+    for (const t of w.tiles) if (t.ground === 'crater') { const p = Pf(t.x, t.z); crater(g, p.x, p.y); }
     // 언덕: 화면 기준 남쪽 땅에 그림자 → 화면 줄 순서로 옆면 · 윗면
     const hR = (rx, rz) => { if (rx < 0 || rz < 0 || rx >= RW || rz >= RD) return 0; const [x, z] = fromR(rx, rz); return World.tile(w, x, z).h; };
     g.fillStyle = 'rgba(25,20,14,0.38)';
@@ -172,8 +283,44 @@ const View = (() => {
     for (let rz = 0; rz < RD; rz++) for (let rx = 0; rx < RW; rx++) {
       if (hR(rx, rz) && !hR(rx, rz + 1)) g.fillRect(rx * TW - 1, rz * TD - EL + TD - 4, TW + 2, 5);
     }
-    ground = { c, PAD };
+    // 북쪽 끝: 위로 갈수록 땅을 투명하게 → 중간 배경 층에 녹아듦
+    const fadeTop = g.createLinearGradient(0, TOP, 0, -TD * 0.15);
+    fadeTop.addColorStop(0, 'rgba(0,0,0,1)');
+    fadeTop.addColorStop(1, 'rgba(0,0,0,0)');
+    g.globalCompositeOperation = 'destination-out';
+    g.fillStyle = fadeTop;
+    g.fillRect(-PX, TOP - 1, c.width, -TD * 0.15 - TOP + 1);
+    g.globalCompositeOperation = 'source-over';
+    ground = warp(c, -PX, -PY, 1, 1, TOP - 2);
     self.groundDirty = false;
+  }
+  // 시야 안개: 회전 좌표 칸 하나 = 1px (맵 밖 한 줄은 투명) → 부드럽게 늘린 평면 그림 → 원근으로 굽혀 둠. 언덕 높이는 무시
+  const FOG_K = 4; // 늘린 평면 그림 1px = 판 4px
+  const fog = { c: document.createElement('canvas'), vis: null, rot: -1, img: null };
+  function buildFog() {
+    const [RW, RD] = dimsR();
+    const c = fog.c;
+    c.width = RW + 2; c.height = RD + 2;
+    const g = c.getContext('2d');
+    const img = g.createImageData(c.width, c.height);
+    for (let py = 0; py < c.height; py++) {
+      for (let px = 0; px < c.width; px++) {
+        const rx = px - 1, rz = py - 1;
+        const inside = rx >= 0 && rz >= 0 && rx < RW && rz < RD;
+        const [x, z] = inside ? fromR(rx, rz) : [0, 0];
+        const i = (py * c.width + px) * 4;
+        img.data[i] = 28; img.data[i + 1] = 24; img.data[i + 2] = 20;
+        img.data[i + 3] = inside && !G.vis.has(z * G.world.W + x) ? 82 : 0;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    const flat = document.createElement('canvas');
+    flat.width = ((RW + 2) * TW) / FOG_K; flat.height = ((RD + 2) * TD) / FOG_K;
+    const f = flat.getContext('2d');
+    f.imageSmoothingEnabled = true;
+    f.drawImage(c, 0, 0, flat.width, flat.height);
+    fog.img = warp(flat, -TW, -TD, FOG_K, FOG_K);
+    fog.vis = G.vis; fog.rot = rot;
   }
   function roundRect(g, x, y, w, h, r) {
     g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
@@ -206,9 +353,9 @@ const View = (() => {
       if (!(L && L.prop === 'R' && Rt && Rt.prop === 'R')) return;
       if (rot % 2) wTiles = 1.6;
     }
-    const k = (wTiles * TW) / a.w;
     const p = P(t.x, t.z, t.h);
-    const y = p.y + TD * 0.32;
+    const k = ((wTiles * TW) / a.w) * p.s;
+    const y = p.y + TD * 0.32 * p.s;
     ctx.globalAlpha = alpha;
     ctx.drawImage(im, p.x - a.pivot[0] * k, y - a.pivot[1] * k, a.w * k, a.h * k);
     ctx.globalAlpha = 1;
@@ -230,6 +377,7 @@ const View = (() => {
     if (keys.w || keys.arrowup) { cam.y -= pan; cam.ty = null; }
     if (keys.s || keys.arrowdown) { cam.y += pan; cam.ty = null; }
     if (cam.tx != null) { cam.x += (cam.tx - cam.x) * Math.min(1, dt * 5); cam.y += (cam.ty - cam.y) * Math.min(1, dt * 5); }
+    clampCam();
     shake = Math.max(0, shake - dt * 30);
     shx = (Math.random() - 0.5) * shake; shy = (Math.random() - 0.5) * shake;
     fade = Math.max(0, fade - dt * 4);
@@ -248,22 +396,44 @@ const View = (() => {
 
   function draw() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = '#9d9784'; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#b2ab95'; ctx.fillRect(0, H * 0.18, W, H);
+    // 하늘 그라데이션 (어두운 회갈색 포연 하늘)
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+    sky.addColorStop(0, '#5f594b');
+    sky.addColorStop(0.5, '#8c8572');
+    sky.addColorStop(1, '#b5ad95');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
     if (!G.world) return;
+    if (persp.rot !== rot) setPersp();
     if (self.groundDirty || !ground) buildGround();
-    const [RW, RD] = dimsR();
-    const top = (-TD * 0.5 - cam.y) * cam.z + H / 2;
-    // 먼 배경 (느린 시차, 회전 방향마다 조금씩 다른 자리)
-    backdrop('bd_far', 0.18, top + 18 * cam.z, 0.9, 0.55, false, rot * 397);
-    backdrop('bd_mid', 0.45, top + 30 * cam.z, 1.05, 0.9, false, rot * 613);
+
+    // ── 맵 뒤 층: 먼 도시 → 먼 언덕 → 먼 들판 → 가까운 들판 (뒤일수록 작고 느리고 흐림) ──
+    // 각 층 아래쪽은 앞 층 윗부분 뒤에 숨음. 가까운 들판 아래 띠(맵 바닥 색)는 맵 바닥 윗끝 흐림 뒤로 들어감
+    const edgeY = (projY(-TD * 0.15) - cam.y) * cam.z + H / 2;
+    let bottom = edgeY + 4 * cam.z;
+    const stack = [];
+    for (const L of BACK_LAYERS) {
+      const im = IM['bd_' + L.img];
+      if (!im) continue;
+      const k = L.k * cam.z, h = im.height * k;
+      stack.push({ L, im, k, bottom });
+      bottom -= h * L.hide;
+    }
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const { L, im, k, bottom: b } = stack[i];
+      layer(im, L.rate, b, k, L.alpha, rot * (im.width / 4) + L.shift);
+      // 공기 원근: 뒤 층 위에 하늘색을 얇게 덮어 더 멀어 보이게
+      if (L.haze) { ctx.fillStyle = `rgba(181,173,149,${L.haze})`; ctx.fillRect(0, b - im.height * k - 2, W, im.height * k + 2); }
+    }
+
+    // ── 맵: 바닥 · 자국 · 시야 안개 · 표시 ──
     const M = camMatrix();
     ctx.setTransform(M);
-    ctx.drawImage(ground.c, -ground.PAD, -ground.PAD);
+    ctx.drawImage(ground.c, ground.x, ground.y);
     for (const s of stains) drawStain(s);
-    // 시야 밖 어둡게
-    ctx.fillStyle = 'rgba(28,24,20,0.28)';
-    for (const t of G.world.tiles) if (!G.vis.has(t.z * G.world.W + t.x)) { const [x0, y0] = tileRect(t); ctx.fillRect(x0, y0, TW, TD); }
+    // 시야 밖 어둡게: 칸마다 1px 짜리 그림을 늘리고 원근으로 굽혀 경계를 부드럽게 (네모 칸이 안 보이게)
+    if (fog.vis !== G.vis || fog.rot !== rot) buildFog();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(fog.img.c, fog.img.x, fog.img.y);
     overlays();
     // 소품 · 병사 · 조각을 화면 깊이 순으로
     const list = [];
@@ -272,7 +442,7 @@ const View = (() => {
       if (u.side === 'cat' && u.alive && !u.visible && !G.over) continue;
       list.push({ d: toR(u.px, u.pz)[1] + (u.alive ? 0.35 : 0.1), u });
     }
-    for (const g of gibs) list.push({ d: g.y / TD - 0.4, g });
+    for (const g of gibs) list.push({ d: depthAt(g.gy) - 0.4, g });
     list.sort((a, b) => a.d - b.d);
     for (const it of list) {
       if (it.t) drawProp(it.t, propAlpha(it.t));
@@ -280,23 +450,31 @@ const View = (() => {
       else drawGib(it.g);
     }
     for (const f of fx) drawFx(f);
-    // 먼 줄 안개 → 원근감
+
+    // ── 맵 앞 층: 카메라 바로 앞 가림 실루엣 (가장 빠르게 움직임, 화면 아래에 붙음) ──
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const mid = ((RD * 0.45) * TD - cam.y) * cam.z + H / 2;
-    const fog = ctx.createLinearGradient(0, top - 40, 0, mid);
-    fog.addColorStop(0, 'rgba(178,171,149,0.55)'); fog.addColorStop(1, 'rgba(178,171,149,0)');
-    ctx.fillStyle = fog; ctx.fillRect(0, top - 40, W, mid - top + 40);
-    // 가까운 전경 실루엣 (빠른 시차)
-    backdrop('bd_near', 1.35, H + 8, 0.95, 1, true, rot * 211);
+    const front = IM.bd_front;
+    if (front) {
+      const k = Math.max(0.45, H / 1500);
+      layer(front, 1.45, H + front.height * k * 0.28 - cam.y * 0.12 * cam.z, k, 0.96, rot * (front.width / 4));
+    }
     if (fade > 0) { ctx.fillStyle = `rgba(30,26,20,${fade * 0.7})`; ctx.fillRect(0, 0, W, H); }
   }
 
-  function backdrop(key, rate, bottomY, scale, alpha, front, shift) {
-    const im = IM[key];
-    if (!im) return;
-    const k = scale * (front ? Math.max(0.7, H / 900) : cam.z * 0.9);
+  // 맵 뒤 층 (뒤 → 앞 순서로 쌓임). k = 줌 1 에서 크기, rate = 카메라 따라 움직이는 정도 (맵 = 1),
+  // hide = 이 층 높이 중 다음(뒤) 층이 가려지는 비율, haze = 공기 원근으로 덮는 하늘색 진하기
+  // 들판은 같은 그림을 두 번 (가깝게 · 멀게) 써서 층을 늘림. 크기는 맵 맨 뒤 소품(모래주머니 ≈ 55px)보다 작게
+  const BACK_LAYERS = [
+    { img: 'field', k: 0.26, rate: 0.78, hide: 0.5, alpha: 1, haze: 0, shift: 0 },
+    { img: 'field', k: 0.19, rate: 0.55, hide: 0.5, alpha: 1, haze: 0.22, shift: 517 },
+    { img: 'hills', k: 0.26, rate: 0.36, hide: 0.55, alpha: 1, haze: 0.3, shift: 0 },
+    { img: 'far', k: 0.3, rate: 0.16, hide: 0.6, alpha: 0.95, haze: 0.38, shift: 0 },
+  ];
+
+  // 가로로 이어 붙이는 층 하나. bottomY = 화면 px (층 아래 끝)
+  function layer(im, rate, bottomY, k, alpha, shift) {
     const w = im.width * k, h = im.height * k;
-    let off = (-((cam.x + shift) * rate) * (front ? 1 : cam.z)) % w;
+    let off = (W / 2 - (cam.x + shift) * rate * cam.z) % w;
     if (off > 0) off -= w;
     ctx.globalAlpha = alpha;
     for (let x = off; x < W; x += w) ctx.drawImage(im, x, bottomY - h, w + 1, h);
@@ -325,34 +503,31 @@ const View = (() => {
     if (G.turn !== 'rat' || !u || !u.alive) return;
     const w = G.world;
     if (G.mode === 'move' && u.ap > 0) {
-      const R = World.reach(w, u, u.def.mob * u.ap);
+      const R = World.reach(w, u, u.mob * u.ap);
       for (const [k, c] of R.keys) {
         if (!c) continue;
-        const t = w.tiles[k];
-        const [x0, y0] = tileRect(t);
-        ctx.fillStyle = c <= u.def.mob ? 'rgba(120,190,240,0.13)' : 'rgba(240,200,90,0.11)';
-        ctx.fillRect(x0 + 3, y0 + 3, TW - 6, TD - 6);
+        ctx.fillStyle = c <= u.mob ? 'rgba(120,190,240,0.13)' : 'rgba(240,200,90,0.11)';
+        quadPath(tileQuad(w.tiles[k], 3)); ctx.fill();
       }
       const h = G.hoverTile;
       if (h && R.cost(h.x, h.z)) {
         const path = R.path(h.x, h.z);
-        ctx.strokeStyle = R.cost(h.x, h.z) <= u.def.mob ? '#8fd0ff' : '#ffd36b';
+        ctx.strokeStyle = R.cost(h.x, h.z) <= u.mob ? '#8fd0ff' : '#ffd36b';
         ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath();
         const s = P(u.x, u.z, tileH(u.x, u.z)); ctx.moveTo(s.x, s.y);
         for (const p of path) { const q = P(p.x, p.z, tileH(p.x, p.z)); ctx.lineTo(q.x, q.y); }
         ctx.stroke();
-        const [x0, y0] = tileRect(h);
-        ctx.lineWidth = 2; ctx.strokeRect(x0 + 3, y0 + 3, TW - 6, TD - 6);
+        ctx.lineWidth = 2; quadPath(tileQuad(h, 3)); ctx.stroke();
         shields(h.x, h.z);
       }
     }
     if (G.mode === 'tile' && G.hoverTile) {
       const A = ABILITIES[G.ability];
       const h = G.hoverTile;
-      const ok = World.dist(u, h) <= A.range;
+      const ok = tileTargetOk(u, G.ability, h);
       ctx.fillStyle = ok ? 'rgba(255,120,60,0.28)' : 'rgba(120,120,120,0.2)';
-      for (const t of w.tiles) if (Math.hypot(t.x - h.x, t.z - h.z) <= A.radius) { const [x0, y0] = tileRect(t); ctx.fillRect(x0 + 2, y0 + 2, TW - 4, TD - 4); }
+      for (const t of w.tiles) if (Math.hypot(t.x - h.x, t.z - h.z) <= A.radius) { quadPath(tileQuad(t, 2)); ctx.fill(); }
     }
     ring(u, '#8fd0ff');
     if (G.mode === 'target') { const t = UI.currentTarget(); if (t) ring(t, '#ff6b5b'); }
@@ -361,23 +536,33 @@ const View = (() => {
     const c = P(x, z, tileH(x, z));
     for (const s of World.coverSides(G.world, x, z)) {
       const [dx, dz] = dirR(s.dx, s.dz);
-      const cx = c.x + dx * TW * 0.42, cy = c.y + dz * TD * 0.42 - 6;
+      ctx.save();
+      ctx.translate(c.x + dx * TW * 0.42 * c.s, c.y + (dz * TD * 0.42 - 6) * c.s);
+      ctx.scale(c.s, c.s);
       ctx.fillStyle = s.cover === 2 ? '#8fd0ff' : '#cfe8ff';
       ctx.beginPath();
-      ctx.moveTo(cx - 7, cy - 8); ctx.lineTo(cx + 7, cy - 8); ctx.lineTo(cx + 7, cy); ctx.quadraticCurveTo(cx + 6, cy + 7, cx, cy + 10); ctx.quadraticCurveTo(cx - 6, cy + 7, cx - 7, cy); ctx.closePath();
+      ctx.moveTo(-7, -8); ctx.lineTo(7, -8); ctx.lineTo(7, 0); ctx.quadraticCurveTo(6, 7, 0, 10); ctx.quadraticCurveTo(-6, 7, -7, 0); ctx.closePath();
       ctx.fill();
-      if (s.cover === 1) { ctx.fillStyle = 'rgba(30,40,50,0.55)'; ctx.fillRect(cx - 7, cy - 8, 14, 8); }
+      if (s.cover === 1) { ctx.fillStyle = 'rgba(30,40,50,0.55)'; ctx.fillRect(-7, -8, 14, 8); }
+      ctx.restore();
     }
   }
   function ring(u, color) {
     const p = foot(u);
     ctx.strokeStyle = color; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, TW * 0.34, TD * 0.26, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, TW * 0.34 * p.s, TD * 0.3 * p.s, 0, 0, Math.PI * 2); ctx.stroke();
   }
 
+  // 병사: 서 있는 줄의 원근 배율로 발 밑을 중심으로 줄여 그림 (리그 · 체력 막대 · 표시 전부)
   function drawUnit(u) {
+    const f = foot(u);
+    ctx.save();
+    ctx.translate(f.x, f.y); ctx.scale(f.s, f.s); ctx.translate(-f.x, -f.y);
+    drawUnitAt(u, f.x, f.y);
+    ctx.restore();
+  }
+  function drawUnitAt(u, x, y) {
     const R = RIG[u.side === 'rat' ? 'rat' : 'cat'];
-    const { x, y } = foot(u);
     const v = viewOf(u);
     if (u.alive) {
       ctx.fillStyle = 'rgba(25,20,15,0.28)';
@@ -390,6 +575,13 @@ const View = (() => {
       view: v.view, flip: v.flip, st: u.st, t: G.t, hide: u.hide, face: u.face, tint: u.tint, cut,
     });
     if (drawn) { u._drawn = drawn; u._view = v; }
+    if (u.downed) {
+      // 쓰러짐 표시: 누운 몸 위에 깜빡이는 붉은 십자
+      ctx.globalAlpha = 0.55 + Math.sin(G.t * 5) * 0.35;
+      ctx.fillStyle = u.side === 'rat' ? '#ff6b5b' : '#ffb0a0';
+      ctx.fillRect(x - 3, y - 58, 6, 18); ctx.fillRect(x - 9, y - 52, 18, 6);
+      ctx.globalAlpha = 1;
+    }
     if (!u.alive) return;
     const top = y - UNIT_H - 14;
     const n = u.maxHp, pw = 7, gap = 2, tw = n * (pw + gap) - gap;
@@ -402,17 +594,20 @@ const View = (() => {
     if (u.overwatch) icon('◉', '#8fd0ff');
     if (u.hunker) icon('▼', '#8fd0ff');
     if (u.suppressedBy) icon('✖', '#ffb84a');
+    if (u.side === 'cat' && !u.active) icon('?', '#ffcf4a'); // 아직 눈치 못 챔
+    if (u.wounds.arm) icon('팔', '#ff6b5b');
+    if (u.wounds.leg) icon('다리', '#ff6b5b');
     if (u.side === 'rat' && u.ap > 0 && G.turn === 'rat') for (let i = 0; i < u.ap; i++) { ctx.fillStyle = '#e8e0c8'; ctx.beginPath(); ctx.arc(x - tw / 2 + i * 9 + 3, top - 8, 3, 0, Math.PI * 2); ctx.fill(); }
   }
 
   // ── 효과 ──
   function muzzlePoint(u) {
-    const { x, y } = foot(u);
+    const { x, y, s } = foot(u);
     const v = viewOf(u);
-    if (v.view === 'side') return { x: x + (v.flip ? -1 : 1) * UNIT_H * 0.55, y: y - UNIT_H * 0.55 };
-    return { x: x + (v.view === 'front' ? 8 : -8), y: y - UNIT_H * (v.view === 'front' ? 0.5 : 0.75) };
+    if (v.view === 'side') return { x: x + (v.flip ? -1 : 1) * UNIT_H * 0.55 * s, y: y - UNIT_H * 0.55 * s };
+    return { x: x + (v.view === 'front' ? 8 : -8) * s, y: y - UNIT_H * (v.view === 'front' ? 0.5 : 0.75) * s };
   }
-  const chest = (u) => { const p = foot(u); return { x: p.x, y: p.y - UNIT_H * 0.55 }; };
+  const chest = (u) => { const p = foot(u); return { x: p.x, y: p.y - UNIT_H * 0.55 * p.s, s: p.s }; };
 
   function muzzle(a, b, hit) {
     const m = muzzlePoint(a), c = chest(b);
@@ -429,14 +624,14 @@ const View = (() => {
   }
   function popup(u, txt, col) {
     const c = chest(u);
-    fx.push({ type: 'text', x: c.x, y: c.y - UNIT_H * 0.55, txt, col, life: 1.2, t: 0 });
+    fx.push({ type: 'text', x: c.x, y: c.y - UNIT_H * 0.55 * c.s, txt, col, life: 1.2, t: 0 });
   }
   function explosion(tx, tz, radius) {
-    const { x, y } = P(tx, tz, tileH(tx, tz));
-    fx.push({ type: 'boom', x, y, r: radius * TW * 0.9, life: 0.45, t: 0 });
-    for (let i = 0; i < 9; i++) fx.push({ type: 'smoke', x: x + (Math.random() - 0.5) * TW * 1.4, y: y - Math.random() * 20, vx: (Math.random() - 0.5) * 30, vy: -20 - Math.random() * 30, r: 14 + Math.random() * 18, life: 1.8 + Math.random(), t: 0 });
-    for (let i = 0; i < 12; i++) fx.push({ type: 'chunk', x, y: y - 10, vx: (Math.random() - 0.5) * 380, vy: -200 - Math.random() * 260, gy: y + (Math.random() - 0.5) * TD, r: 3 + Math.random() * 4, col: Math.random() < 0.5 ? '#4b3f31' : '#6b5a44', life: 1.6, t: 0 });
-    stains.push({ type: 'scorch', x, y, r: radius * TW * 0.55 });
+    const { x, y, s } = P(tx, tz, tileH(tx, tz));
+    fx.push({ type: 'boom', x, y, r: radius * TW * 0.9 * s, life: 0.45, t: 0 });
+    for (let i = 0; i < 9; i++) fx.push({ type: 'smoke', x: x + (Math.random() - 0.5) * TW * 1.4 * s, y: y - Math.random() * 20 * s, vx: (Math.random() - 0.5) * 30, vy: -20 - Math.random() * 30, r: (14 + Math.random() * 18) * s, life: 1.8 + Math.random(), t: 0 });
+    for (let i = 0; i < 12; i++) fx.push({ type: 'chunk', x, y: y - 10 * s, vx: (Math.random() - 0.5) * 380 * s, vy: (-200 - Math.random() * 260) * s, gy: y + (Math.random() - 0.5) * TD * s, r: (3 + Math.random() * 4) * s, col: Math.random() < 0.5 ? '#4b3f31' : '#6b5a44', life: 1.6, t: 0 });
+    stains.push({ type: 'scorch', x, y, r: radius * TW * 0.55 * s });
     shake = 14;
   }
   function debris(x, z, prop) {
@@ -541,7 +736,8 @@ const View = (() => {
 
   async function die(u, gore) {
     u.st.walk = null; u.inCover = false; u.aiming = false;
-    const parts = { decap: ['head'], sever: ['arm'], burst: ['head', 'arm', 'shinN'] }[gore] || [];
+    // arm · leg = 살아서 쓰러질 때 잘린 부위 (game.js downUnit)
+    const parts = { decap: ['head'], sever: ['arm'], burst: ['head', 'arm', 'shinN'], arm: ['arm'], leg: ['shinN'] }[gore] || [];
     let cut = false;
     await tween(1000, (k) => {
       u.st.death = k;
@@ -549,7 +745,7 @@ const View = (() => {
     });
     u.st.death = 1;
     const f = foot(u);
-    stains.push({ type: 'pool', x: f.x + (u._view && u._view.flip ? 30 : -30), y: f.y + 2, r: 6, grow: 22 });
+    stains.push({ type: 'pool', x: f.x + (u._view && u._view.flip ? 30 : -30) * f.s, y: f.y + 2, r: 6 * f.s, grow: 22 * f.s });
   }
 
   // ── 던지기 · 포탄 ──
@@ -576,13 +772,15 @@ const View = (() => {
 
   function focus(u) {
     const p = P(u.px != null ? u.px : u.x, u.pz != null ? u.pz : u.z);
-    cam.tx = p.x; cam.ty = p.y - UNIT_H * 0.3;
+    cam.tx = p.x; cam.ty = p.y - Math.max(UNIT_H * 0.4, 95 / cam.z);
+    clampCam();
   }
   function focusPair(a, b) {
     const ax = a.px != null ? a.px : a.x, az = a.pz != null ? a.pz : a.z;
     const bx = b.px != null ? b.px : b.x, bz = b.pz != null ? b.pz : b.z;
     const p = P((ax + bx) / 2, (az + bz) / 2);
-    cam.tx = p.x; cam.ty = p.y - UNIT_H * 0.3;
+    cam.tx = p.x; cam.ty = p.y - Math.max(UNIT_H * 0.4, 95 / cam.z);
+    clampCam();
   }
 
   // ── 입력 ──
@@ -599,7 +797,13 @@ const View = (() => {
     });
     window.addEventListener('keyup', (e) => (keys[e.key.toLowerCase()] = false));
     cv.addEventListener('mousemove', (e) => {
-      if (drag) { cam.x = drag.cx - (e.clientX - drag.x) / cam.z; cam.y = drag.cy - (e.clientY - drag.y) / cam.z; cam.tx = null; return; }
+      if (drag) {
+        cam.x = drag.cx - (e.clientX - drag.x) / cam.z;
+        cam.y = drag.cy - (e.clientY - drag.y) / cam.z;
+        cam.tx = null;
+        clampCam();
+        return;
+      }
       G.hoverTile = G.world ? pickTile(e.clientX, e.clientY) : null;
       UI.hover(e.clientX, e.clientY);
     });
@@ -607,7 +811,7 @@ const View = (() => {
     window.addEventListener('mouseup', () => (drag = null));
     cv.addEventListener('contextmenu', (e) => { e.preventDefault(); UI.cancel(); });
     cv.addEventListener('click', (e) => { if (G.world) UI.click(pickTile(e.clientX, e.clientY), e); });
-    cv.addEventListener('wheel', (e) => { cam.z = Math.max(0.6, Math.min(2.2, cam.z * (e.deltaY > 0 ? 0.9 : 1.1))); e.preventDefault(); }, { passive: false });
+    cv.addEventListener('wheel', (e) => { cam.z = Math.max(0.6, Math.min(2.2, cam.z * (e.deltaY > 0 ? 0.9 : 1.1))); clampCam(); e.preventDefault(); }, { passive: false });
   }
 
   function unitAtScreen(mx, my) {
@@ -616,7 +820,7 @@ const View = (() => {
     for (const u of G.units) {
       if (!u.alive || (u.side === 'cat' && !u.visible)) continue;
       const f = foot(u);
-      if (Math.abs(p.x - f.x) < TW * 0.4 && p.y < f.y && p.y > f.y - UNIT_H && f.d > bd) { best = u; bd = f.d; }
+      if (Math.abs(p.x - f.x) < TW * 0.48 * f.s && p.y <= f.y + 6 * f.s && p.y >= f.y - (UNIT_H + 24) * f.s && f.d > bd) { best = u; bd = f.d; }
     }
     return best;
   }
@@ -628,15 +832,25 @@ const View = (() => {
     frame(dt);
     requestAnimationFrame(loop);
   }
+  // 다음 전투: 지난 판 핏자국 · 조각 · 효과 지우기
+  function reset() {
+    fx.length = 0; stains.length = 0; gibs.length = 0;
+    shake = 0; self.groundDirty = true;
+    setPersp();
+  }
   function start() {
     resize(); bindInput();
-    const r = rats()[0];
-    if (r) { const p = P(r.x + 3, r.z - 3); cam.x = p.x; cam.y = p.y; }
+    const [RW, RD] = dimsR();
+    setPersp();
+    const c = proj((RW * TW) * 0.5, (RD * TD) * 0.55);
+    cam.x = c.x; cam.y = c.y;
+    clampCam();
     requestAnimationFrame(loop);
   }
 
   return Object.assign(self, {
-    load, start, tween, focus, focusPair, muzzle, blood, popup, explosion, debris, die, lob, shell, aim, rotate, viewOf, unitAtScreen,
+    step: frame, // 테스트용: 숨은 창(rAF 멈춤)에서 프레임 직접 돌리기
+    load, start, reset, tween, focus, focusPair, muzzle, blood, popup, explosion, debris, die, lob, shell, aim, rotate, viewOf, unitAtScreen,
     banner: (t, s) => UI.banner(t, s), showEnd: (r, rep) => UI.showEnd(r, rep), IM, RIG, cam,
   });
 })();

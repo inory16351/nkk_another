@@ -48,7 +48,7 @@ const UI = (() => {
       return;
     }
     if (G.mode === 'tile') {
-      if (tile && World.dist(u, tile) <= ABILITIES[G.ability].range) doAbility(u, G.ability, tile);
+      if (tileTargetOk(u, G.ability, tile)) doAbility(u, G.ability, tile);
       else cancel();
       return;
     }
@@ -92,7 +92,7 @@ const UI = (() => {
     tip.style.display = 'block';
     tip.innerHTML = `<div class="tip-h"><b>${b.name}</b> <span>체력 ${b.hp}/${b.maxHp}</span></div>
       <div class="tip-big">${info.hit}%<small>명중</small> ${info.crit}%<small>치명</small></div>
-      <div class="tip-d">피해 ${wp.dmg[0] + (G.ability === 'aimed' ? 1 : 0)}–${wp.dmg[1] + (G.ability === 'aimed' ? 1 : 0)}${info.flanked ? ' · <b class="warn">측면!</b>' : ''}</div>
+      <div class="tip-d">피해 ${wp.dmg[0] + (G.ability === 'aimed' ? 1 : 0)}–${wp.dmg[1] + (G.ability === 'aimed' ? 1 : 0)}${info.flanked ? ' · <b class="warn">측면!</b>' : ''}${b.active ? '' : ' · <b class="warn">눈치 못 챔</b>'}</div>
       ${info.parts.map(([n, v]) => `<div class="tip-r"><span>${n}</span><span class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : ''}${v}</span></div>`).join('')}
       ${G.mode === 'target' ? `<div class="tip-k">클릭 · Enter 발사 / Tab 다음 대상 / Esc 취소</div>` : ''}`;
   }
@@ -108,7 +108,7 @@ const UI = (() => {
     // 분대 카드 + 능력 버튼 (바뀔 때만 다시 그림)
     const u = G.sel;
     const abil = u && G.turn === 'rat' ? abilitiesOf(u) : [];
-    const sig = JSON.stringify([G.units.filter((x) => x.side === 'rat').map((x) => [x.hp, x.ap, x.alive, x.ammo, x.overwatch, x.hunker]), u && u.id, abil.map((a) => [a.ab, a.ok, a.count]), G.mode, G.ability, G.turn]);
+    const sig = JSON.stringify([G.units.filter((x) => x.side === 'rat').map((x) => [x.hp, x.ap, x.alive, x.downed, x.ammo, x.overwatch, x.hunker, x.wounds]), u && u.id, abil.map((a) => [a.ab, a.ok, a.count]), G.mode, G.ability, G.turn]);
     if (sig === lastBar) return;
     lastBar = sig;
     $('squad').innerHTML = G.units.filter((x) => x.side === 'rat').map((x) => {
@@ -116,7 +116,8 @@ const UI = (() => {
       return `<div class="card ${x === u ? 'sel' : ''} ${x.alive ? '' : 'dead'}" data-id="${x.id}">
         <div class="nm">${rank} ${x.name}</div><div class="cl">${x.def.name}</div>
         <div class="hp">${Array.from({ length: x.maxHp }, (_, i) => `<i class="${i < x.hp ? 'on' : ''}"></i>`).join('')}</div>
-        <div class="st">${x.alive ? `탄 ${x.ammo}/${WEAPONS[x.def.weapon].clip} · ${'●'.repeat(x.ap)}${'○'.repeat(Math.max(0, 2 - x.ap))}` : '전사'}</div>
+        <div class="st">${x.alive ? `탄 ${x.ammo}/${WEAPONS[x.def.weapon].clip} · ${'●'.repeat(x.ap)}${'○'.repeat(Math.max(0, 2 - x.ap))}` : x.downed ? '<span class="neg">쓰러짐 — 확인사살 위험</span>' : '전사'}</div>
+        ${Object.keys(x.wounds).length ? `<div class="st neg">${Object.entries(x.wounds).map(([p, v]) => `${PART_NAME[p]} ${v > 1 ? '잘림' : '부상'}`).join(' · ')}</div>` : ''}
       </div>`;
     }).join('');
     for (const el of document.querySelectorAll('#squad .card')) {
@@ -138,6 +139,14 @@ const UI = (() => {
     clearTimeout(b._t); b._t = setTimeout(() => (b.className = ''), 1400);
   }
 
+  const woundText = (x) => {
+    const t = [];
+    if (x.downed) t.push('쓰러졌다 살아남음');
+    if (x.hurt && x.hurt.length) t.push(x.hurt.map((p) => PART_NAME[p]).join(' · ') + ' 부상 (나음)');
+    if (x.lost && x.lost.length) t.push(x.lost.map((p) => PART_NAME[p]).join(' · ') + ' 잘림 → ' + x.lost.map((p) => (p === 'arm' ? '의수' : '의족')).join(' · ') + ' 필요');
+    return t.length ? ` <span class="neg">· ${t.join(' · ')}</span>` : '';
+  };
+
   function showEnd(result, rep) {
     const r = G.roster;
     $('end').style.display = 'flex';
@@ -146,7 +155,8 @@ const UI = (() => {
       <p>${result === 'win' ? '언덕을 지켜 냈다. 총통의 고양이들이 물러간다.' : '분대가 전멸했다. 총통의 깃발이 언덕에 꽂혔다.'}</p>
       <h3>분대 보고</h3>
       ${rep.map((x) => x.dead ? `<div class="rep dead">✝ ${x.name} — 전사 (다시 돌아오지 않음)</div>`
-        : `<div class="rep">${x.rank} ${x.name} · ${CLASSES[x.cls].name} · 처치 ${x.kills} · 경험 ${x.xp}${x.promoted ? ' <b>진급!</b>' : ''}</div>`).join('')}
+        : `<div class="rep">${x.rank} ${x.name} · ${CLASSES[x.cls].name} · 처치 ${x.kills} · 경험 ${x.xp}${x.promoted ? ' <b>진급!</b>' : ''}${woundText(x)}</div>`).join('')}
+      ${Roster.ready(r).length < r.squad.length ? `<h3>의수 · 의족 대기 (출전 불가)</h3><div class="fallen">${r.squad.filter((s) => s.lost && s.lost.length).map((s) => `${s.name} (${s.lost.map((p) => PART_NAME[p]).join(' · ')})`).join(' · ')}</div>` : ''}
       ${r.fallen.length ? `<h3>전사자 명단</h3><div class="fallen">${r.fallen.map((f) => `${f.rank} ${f.name}`).join(' · ')}</div>` : ''}
       <div class="btns"><button id="again">다음 전투 (빈자리는 신병)</button><button id="reset">분대 처음부터</button></div>
     </div>`;
@@ -155,8 +165,8 @@ const UI = (() => {
   }
 
   function restart() {
+    View.reset();
     startBattle();
-    View.groundDirty = true;
     lastBar = '';
     selectNext();
   }

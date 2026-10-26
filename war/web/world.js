@@ -20,7 +20,7 @@ const World = (() => {
 
   const tile = (w, x, z) => (x < 0 || z < 0 || x >= w.W || z >= w.D ? null : w.tiles[z * w.W + x]);
   const propOf = (t) => (t && t.prop ? PROPS[t.prop] : null);
-  const unitAt = (w, x, z) => w.units.find((u) => u.alive && u.x === x && u.z === z);
+  const unitAt = (w, x, z) => w.units.find((u) => (u.alive || u.downed) && u.x === x && u.z === z);
   const walkable = (w, x, z) => { const t = tile(w, x, z); return !!t && !(propOf(t) && propOf(t).block); };
   const sightBlocker = (t) => !!(propOf(t) && propOf(t).sightBlock);
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -61,7 +61,7 @@ const World = (() => {
   }
 
   function sightOf(w, u) {
-    return RULES.sight + (u.def.sight || 0) + (tile(w, u.x, u.z).h ? 2 : 0);
+    return RULES.sight + (u.def.sight || 0) + (tile(w, u.x, u.z).h ? 1 : 0);
   }
 
   function canSee(w, u, p) {
@@ -106,10 +106,13 @@ const World = (() => {
       for (const [dx, dz] of DIRS8) {
         const nx = x + dx, nz = z + dz;
         if (!walkable(w, nx, nz)) continue;
-        if (dx && dz && (!walkable(w, x + dx, z) || !walkable(w, x, z + dz))) continue;
+        const w1 = walkable(w, x + dx, z), w2 = walkable(w, x, z + dz);
+        if (dx && dz && (!w1 && !w2)) continue;
+        const cornerPenalty = (dx && dz && (!w1 || !w2)) ? 0.35 : 0;
         const o = unitAt(w, nx, nz);
         if (o && o !== u) continue;
-        const nc = c + (dx && dz ? RULES.diagCost : 1) + (tile(w, nx, nz).h !== h0 ? RULES.climbCost : 0);
+        const nt = tile(w, nx, nz);
+        const nc = c + (dx && dz ? RULES.diagCost : 1) + cornerPenalty + (nt && nt.h !== h0 ? RULES.climbCost : 0);
         if (nc > maxCost + 1e-6) continue;
         const k = key(nx, nz);
         if (!cost.has(k) || nc < cost.get(k)) {

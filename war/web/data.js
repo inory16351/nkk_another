@@ -95,6 +95,15 @@ const PROPS = {
 const RULES = {
   ap: 2,
   sight: 8,
+  // 맞은 부위 확률 (가중치). 치명타면 머리가 잘 맞음. 머리 = 즉사
+  hitParts: { head: 10, torso: 50, arm: 20, leg: 20 },
+  hitPartsCrit: { head: 30, torso: 40, arm: 15, leg: 15 },
+  severOnCrit: 0.7,     // 팔 · 다리 치명타면 이 확률로 잘림 → 쓰러짐, 의수 · 의족 전엔 출전 못 함
+  armWoundAim: 30,      // 팔 부상: 그 판 명중 감소
+  armReloadFail: 0.35,  // 팔 부상: 재장전 실패 확률 (행동력은 씀)
+  legWoundMob: 0.5,     // 다리 부상: 이동 범위 배율
+  executeRange: 7,      // 고양이가 쓰러진 쥐를 확인사살하러 가는 거리
+  wakeRange: 6, // 자고 있는 무리는 이 거리 안에서 서로 보여야 깸 (더 멀면 보이기만 함 → 먼저 쏠 수 있음)
   highGroundAim: 20,
   coverDef: [0, 20, 40],
   hunkerDef: 25,

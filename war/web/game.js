@@ -38,11 +38,13 @@ const Roster = {
       fallen: [], used: MAP.rats.map((r) => r.name),
     };
   },
+  // 출전 가능 = 잘린 팔 · 다리가 없음 (의수 · 의족 연구 전)
+  ready: (r) => r.squad.filter((s) => !(s.lost && s.lost.length)),
   // 빈자리는 이병으로 채움
   fill(r) {
     const need = ['rifleman', 'gunner', 'sniper', 'engineer'];
-    while (r.squad.length < 4) {
-      const have = r.squad.map((s) => s.cls);
+    while (this.ready(r).length < 4) {
+      const have = this.ready(r).map((s) => s.cls);
       const cls = need.find((c) => !have.includes(c)) || 'rifleman';
       const name = RECRUITS.find((n) => !r.used.includes(n)) || '신병' + (r.used.length + 1);
       r.used.push(name);
@@ -62,6 +64,7 @@ function makeUnit(side, cls, x, z, extra = {}) {
     name: extra.name || def.name,
     maxHp: def.hp + rank.hp, hp: def.hp + rank.hp, aim: def.aim + rank.aim,
     ap: 0, ammo: WEAPONS[def.weapon].clip, grenades: def.grenades || 0, medkits: def.medkits || 0,
+    mob: def.mob, wounds: {}, downed: false,
     alive: true, overwatch: false, hunker: false, suppressedBy: null, suppressing: null, moved: false,
     active: side === 'rat', pod: extra.pod || null, seen: side === 'rat',
     // 기록
@@ -85,7 +88,7 @@ function startBattle() {
   G.world.units = G.units;
   G.roster = Roster.fill(Roster.load() || Roster.fresh());
   const spots = MAP.rats.map((r) => [r.x, r.z]);
-  G.roster.squad.slice(0, 4).forEach((s, i) => {
+  Roster.ready(G.roster).slice(0, 4).forEach((s, i) => {
     const u = makeUnit('rat', s.cls, spots[i][0], spots[i][1], { name: s.name, xp: s.xp, rosterId: s.id, tint: HEAD_TINTS[s.tint % HEAD_TINTS.length] });
     G.units.push(u);
   });
@@ -96,7 +99,7 @@ function startBattle() {
     G.units.push(u);
   }
   G.shells = MAP.mortarShells;
-  G.turn = 'rat'; G.round = 1; G.over = null; G.log = [];
+  G.turn = 'rat'; G.round = 1; G.over = null; G.log = []; G.alerted = new Set();
   G.stats = { kills: 0, lost: 0 };
   beginTurn('rat');
   updateVision();
@@ -113,13 +116,13 @@ function updateVision() {
       if (Math.hypot(t.x - r.x, t.z - r.z) <= s && World.los(w, r, t)) G.vis.add(t.z * w.W + t.x);
     }
   }
-  // 무리 깨우기: 서로 보이면 그 무리 전부
-  const wake = new Set();
+  // 무리 깨우기: 가까이서(wakeRange) 서로 보이거나, 맞았으면 그 무리 전부
+  const wake = new Set(G.alerted);
   for (const c of cats()) {
     const seenNow = G.vis.has(c.z * w.W + c.x);
     if (seenNow && !c.seen) c.seen = true;
     c.visible = seenNow;
-    if (!c.active && (seenNow || rats().some((r) => World.canSee(w, c, r)))) wake.add(c.pod);
+    if (!c.active && rats().some((r) => World.dist(r, c) <= RULES.wakeRange && World.canSee(w, c, r))) wake.add(c.pod);
   }
   return wake;
 }
@@ -127,6 +130,7 @@ function updateVision() {
 // 무리가 깨면 엑스컴처럼 엄폐물로 흩어짐 (공짜 이동)
 async function wakePods(pods) {
   for (const pod of pods) {
+    G.alerted.delete(pod);
     const group = cats().filter((c) => c.pod === pod && !c.active);
     if (!group.length) continue;
     for (const c of group) c.active = true;
@@ -134,7 +138,7 @@ async function wakePods(pods) {
     View.focus(group[0], 0.5);
     await sleep(350);
     for (const c of group) {
-      const spot = bestTile(c, c.def.mob, true);
+      const spot = bestTile(c, c.mob, true);
       if (spot && (spot.x !== c.x || spot.z !== c.z)) await moveUnit(c, spot.path, { scamper: true });
     }
   }
@@ -143,7 +147,7 @@ async function wakePods(pods) {
 // ── 명중률 ──
 function hitInfo(a, b, opts = {}) {
   const w = G.world;
-  const wp = WEAPONS[opts.weapon || a.def.weapon];
+  const wp = WEAPONS[opts.weapon || (opts.heavy ? 'hmg' : a.def.weapon)];
   const d = World.dist(a, b);
   const parts = [['조준', a.aim]];
   parts.push(['거리', wp.range(Math.round(d))]);
@@ -153,9 +157,9 @@ function hitInfo(a, b, opts = {}) {
   const ha = World.tile(w, a.x, a.z).h, hb = World.tile(w, b.x, b.z).h;
   if (ha > hb) parts.push(['고지', RULES.highGroundAim]);
   if (a.suppressedBy) parts.push(['제압당함', RULES.suppressAim]);
+  if (a.wounds && a.wounds.arm) parts.push(['팔 부상', -RULES.armWoundAim]);
   if (opts.overwatch) parts.push(['경계 사격', RULES.overwatchAim]);
   if (opts.aimed) parts.push(['정조준', 20]);
-  if (opts.heavy) parts.push(['중기관총', 0]);
   const off = a.side === 'cat' && cats().some((o) => o.def.aura && o !== a && World.dist(o, a) <= 4);
   if (off) parts.push(['장교 지휘', 10]);
   const hit = Math.max(1, Math.min(99, parts.reduce((s, p) => s + p[1], 0)));
@@ -225,13 +229,15 @@ function checkOver() {
 function finish(result) {
   G.over = result; G.mode = 'over';
   // 기록: 살아남은 쥐 경험치 +1, 처치마다 +1. 죽은 쥐는 전사자 명단으로
+  // 쓰러진 쥐: 이기면 부상자로 살아남음, 지면 전사. 팔 · 다리 잘린 쥐는 의수 · 의족 전엔 출전 못 함
   const r = G.roster;
   r.battles++;
   const report = [];
   for (const u of G.units.filter((u) => u.side === 'rat')) {
     const s = r.squad.find((q) => q.id === u.rosterId);
     if (!s) continue;
-    if (!u.alive) {
+    const survived = u.alive || (u.downed && result === 'win');
+    if (!survived) {
       r.fallen.push({ name: s.name, cls: s.cls, rank: RANKS[rankOf(s.xp)].name, kills: s.kills + u.kills, battle: r.battles });
       r.squad = r.squad.filter((q) => q !== s);
       report.push({ name: s.name, dead: true });
@@ -241,7 +247,11 @@ function finish(result) {
     s.xp += u.kills + 1 + (result === 'win' ? 1 : 0);
     s.kills += u.kills; s.missions++;
     const after = rankOf(s.xp);
-    report.push({ name: s.name, cls: s.cls, xp: s.xp, kills: u.kills, rank: RANKS[after].name, promoted: after > before });
+    // 잘린 부위는 남김 (의수 · 의족 연구 전까지 출전 불가). 그냥 부상은 판이 끝나면 나음
+    const lost = Object.keys(u.wounds).filter((p) => u.wounds[p] > 1);
+    if (lost.length) s.lost = [...new Set([...(s.lost || []), ...lost])];
+    const hurt = Object.keys(u.wounds).filter((p) => u.wounds[p] === 1);
+    report.push({ name: s.name, cls: s.cls, xp: s.xp, kills: u.kills, rank: RANKS[after].name, promoted: after > before, downed: u.downed, hurt, lost });
   }
   Roster.save(r);
   G.report = report;
@@ -296,6 +306,18 @@ function idleFacing(u) {
   u.inCover = cv.cover > 0;
 }
 
+// 팔 부상이면 탄창을 떨어뜨려 실패할 때가 있음 (행동력은 이미 씀)
+function reload(u) {
+  const show = u.side === 'rat' || u.visible;
+  if (u.wounds.arm && Math.random() < RULES.armReloadFail) {
+    if (show) { View.popup(u, '재장전 실패', '#ff6b5b'); say(`${u.name} 재장전 실패 (팔 부상)`, u.side === 'rat' ? 'bad' : 'good'); }
+    return false;
+  }
+  u.ammo = WEAPONS[u.def.weapon].clip;
+  if (show) View.popup(u, '재장전', '#d8d0b8');
+  return true;
+}
+
 function spendAP(u, ab) {
   if (ABILITIES[ab].end) u.ap = 0; else u.ap -= ABILITIES[ab].ap;
 }
@@ -304,6 +326,7 @@ async function shoot(a, b, opts = {}) {
   const info = hitInfo(a, b, opts);
   const wp = WEAPONS[opts.heavy ? 'hmg' : a.def.weapon];
   faceToward(a, b.x, b.z);
+  if (b.side === 'cat' && !b.active) G.alerted.add(b.pod); // 빗나가도 총소리에 깸
   if (!opts.overwatch) View.focusPair(a, b);
   a.face = 'attack'; a.faceT = 1.2;
   await View.aim(a, 380);
@@ -314,13 +337,13 @@ async function shoot(a, b, opts = {}) {
   const shots = a.def.weapon === 'lmg' || a.def.weapon === 'smg' || opts.heavy ? 3 : 1;
   for (let i = 0; i < shots; i++) {
     View.muzzle(a, b, hit);
-    Sound.shot(a.def.weapon);
+    Sound.shot(opts.heavy ? 'lmg' : a.def.weapon);
     a.st.recoil = 1;
     await sleep(shots > 1 ? 90 : 160);
   }
   if (hit) {
     let dmg = rnd(wp.dmg[0], wp.dmg[1]) + (crit ? RULES.critDmg : 0) + (opts.aimed ? 1 : 0);
-    await damage(b, dmg, { crit, from: a, kind: a.def.weapon });
+    await damage(b, dmg, { crit, from: a, kind: a.def.weapon, part: rollHitPart(crit) });
   } else {
     View.popup(b, '빗나감', '#d8d0b8');
     say(`${a.name} → ${b.name} 빗나감 (${info.hit}%)`);
@@ -329,22 +352,70 @@ async function shoot(a, b, opts = {}) {
   return hit;
 }
 
+// ── 맞은 부위: 머리 = 즉사, 몸통 = 체력, 팔 · 다리 = 부상 (체력 0 이나 잘림이면 사망 대신 쓰러짐) ──
+const PART_NAME = { head: '머리', torso: '몸통', arm: '팔', leg: '다리' };
+function rollHitPart(crit) {
+  const w = crit ? RULES.hitPartsCrit : RULES.hitParts;
+  let r = Math.random() * Object.values(w).reduce((s, v) => s + v, 0);
+  for (const [p, v] of Object.entries(w)) { if ((r -= v) < 0) return p; }
+  return 'torso';
+}
+
 async function damage(u, dmg, o = {}) {
+  if (u.downed) return kill(u, o); // 쓰러진 채 또 맞으면 끝
   if (!u.alive) return;
   u.hp -= dmg;
+  if (u.side === 'cat' && !u.active) G.alerted.add(u.pod);
   u.face = 'hit'; u.faceT = 1.0;
   u.st.hit = 1;
-  View.blood(u, o.crit ? 14 : 8);
-  View.popup(u, (o.crit ? '치명타! ' : '') + '−' + dmg, o.crit ? '#ffcf4a' : '#ff6b5b');
+  View.blood(u, o.crit || o.part === 'head' ? 14 : 8);
+  const where = o.part && o.part !== 'torso' ? PART_NAME[o.part] + ' ' : '';
+  View.popup(u, where + (o.crit ? '치명타! ' : '') + '−' + dmg, o.crit || o.part === 'head' ? '#ffcf4a' : '#ff6b5b');
   Sound.hit();
-  if (o.from) say(`${o.from.name} → ${u.name} ${dmg} 피해${o.crit ? ' (치명타)' : ''}`, u.side === 'rat' ? 'bad' : 'good');
+  if (o.from) say(`${o.from.name} → ${u.name} ${where}${dmg} 피해${o.crit ? ' (치명타)' : ''}`, u.side === 'rat' ? 'bad' : 'good');
+  if (o.part === 'head') return kill(u, { ...o, headshot: true });
+  if (o.part === 'arm' || o.part === 'leg') {
+    const severed = o.crit && Math.random() < RULES.severOnCrit;
+    u.wounds[o.part] = Math.max(u.wounds[o.part] || 0, severed ? 2 : 1); // 1 부상 · 2 잘림
+    if (o.part === 'leg') u.mob = Math.max(2, Math.floor(u.def.mob * RULES.legWoundMob));
+    if (severed || u.hp <= 0) return downUnit(u, { ...o, severed });
+    say(`${u.name} ${PART_NAME[o.part]} 부상`, u.side === 'rat' ? 'bad' : 'good');
+    return;
+  }
   if (u.hp <= 0) await kill(u, o);
 }
 
+// 쓰러짐: 행동 불가 · 누움. 적이 확인사살하면 사망, 이긴 채 끝나면 부상자로 살아남음
+async function downUnit(u, o = {}) {
+  u.alive = false; u.downed = true; u.hp = 0;
+  u.overwatch = false; u.hunker = false;
+  if (u.suppressing) { u.suppressing.suppressedBy = null; u.suppressing = null; }
+  if (o.from) o.from.kills++;
+  if (u.side === 'cat') G.stats.kills++; else G.stats.lost++;
+  say(`${u.name} 쓰러짐!${o.severed ? ` (${PART_NAME[o.part]} 잘림)` : ''}`, u.side === 'rat' ? 'bad' : 'good');
+  if (o.from) faceToward(u, o.from.x, o.from.z);
+  u.forceSide = true; u.cut = null; u.face = 'hit';
+  Sound.death();
+  await View.die(u, o.severed ? o.part : null);
+  updateVision();
+  checkOver();
+}
+
 async function kill(u, o = {}) {
-  u.alive = false; u.hp = 0;
+  const wasDown = u.downed;
+  u.alive = false; u.downed = false; u.hp = 0;
   u.overwatch = false;
   if (u.suppressing) { u.suppressing.suppressedBy = null; u.suppressing = null; }
+  u.face = 'dead';
+  if (wasDown) {
+    // 이미 누워 있음: 넘어지는 동작 없이 피만
+    View.blood(u, 10);
+    say(u.side === 'rat' ? `${u.name} 전사…` : `${u.name} 사살`, u.side === 'rat' ? 'bad' : 'good');
+    Sound.death();
+    u.corpse = true;
+    checkOver();
+    return;
+  }
   if (o.from) o.from.kills++;
   if (u.side === 'cat') G.stats.kills++; else G.stats.lost++;
   say(u.side === 'rat' ? `${u.name} 전사…` : `${u.name} 사살`, u.side === 'rat' ? 'bad' : 'good');
@@ -352,10 +423,10 @@ async function kill(u, o = {}) {
   if (o.from) faceToward(u, o.from.x, o.from.z);
   u.forceSide = true;
   u.cut = null;
-  u.face = 'dead';
-  // 신체 절단: 폭발 · 치명타 · 산탄총 근접
+  // 신체 절단: 머리 명중 · 폭발 · 치명타 · 산탄총 근접
   let gore = null;
-  if (o.kind === 'explosion') gore = Math.random() < 0.6 ? 'burst' : 'sever';
+  if (o.headshot) gore = o.crit || Math.random() < 0.4 ? 'decap' : null;
+  else if (o.kind === 'explosion') gore = Math.random() < 0.6 ? 'burst' : 'sever';
   else if (o.crit && Math.random() < 0.65) gore = Math.random() < 0.5 ? 'decap' : 'sever';
   else if (o.kind === 'shotgun' && Math.random() < 0.4) gore = 'sever';
   u.gore = gore;
@@ -364,6 +435,22 @@ async function kill(u, o = {}) {
   u.corpse = true;
   updateVision();
   checkOver();
+}
+
+// 확인사살: 쓰러진 적에게 다가가 쏨 (반드시 맞음)
+async function execute(a, b) {
+  faceToward(a, b.x, b.z);
+  View.focusPair(a, b);
+  a.face = 'attack'; a.faceT = 1.2;
+  await View.aim(a, 450);
+  View.muzzle(a, b, true);
+  Sound.shot(a.def.weapon);
+  a.st.recoil = 1;
+  a.ammo = Math.max(0, a.ammo - 1);
+  say(`${a.name}: ${b.name} 확인사살`, b.side === 'rat' ? 'bad' : 'good');
+  await sleep(200);
+  await kill(b, { from: a, kind: a.def.weapon });
+  await sleep(350);
 }
 
 async function throwGrenade(a, tx, tz, opts = {}) {
@@ -398,7 +485,7 @@ async function explode(tx, tz, ab, from) {
       View.groundDirty = true;
     } else if (Math.hypot(t.x - tx, t.z - tz) <= 0.6 && !t.prop) { t.ground = 'crater'; View.groundDirty = true; }
   }
-  const hits = G.units.filter((u) => u.alive && Math.hypot(u.x - tx, u.z - tz) <= ab.radius);
+  const hits = G.units.filter((u) => (u.alive || u.downed) && Math.hypot(u.x - tx, u.z - tz) <= ab.radius);
   await sleep(200);
   await Promise.all(hits.map((u) => damage(u, rnd(ab.dmg[0], ab.dmg[1]), { from, kind: 'explosion' })));
   await sleep(400);
@@ -426,7 +513,7 @@ async function doAbility(u, ab, target) {
     else if (ab === 'mortar') { G.shells--; await throwGrenade(u, target.x, target.z, { mortar: true }); }
     else if (ab === 'overwatch') { spendAP(u, ab); u.overwatch = true; View.popup(u, '경계', '#8fd0ff'); say(`${u.name} 경계`); }
     else if (ab === 'hunker') { spendAP(u, ab); u.hunker = true; View.popup(u, '엎드림', '#8fd0ff'); }
-    else if (ab === 'reload') { spendAP(u, ab); u.ammo = WEAPONS[u.def.weapon].clip; View.popup(u, '재장전', '#d8d0b8'); Sound.reload(); await sleep(350); }
+    else if (ab === 'reload') { spendAP(u, ab); reload(u); Sound.reload(); await sleep(350); }
     else if (ab === 'firstaid') {
       spendAP(u, ab); u.medkits--;
       target.hp = Math.min(target.maxHp, target.hp + ABILITIES.firstaid.heal);
@@ -434,6 +521,9 @@ async function doAbility(u, ab, target) {
       say(`${u.name} → ${target.name} 응급 처치`, 'good');
       await sleep(350);
     }
+    // 자는 무리를 쐈으면 깸
+    const wake = updateVision();
+    if (wake.size && !G.over) { await wakePods(wake); updateVision(); }
   } finally {
     if (G.mode === 'busy') G.mode = 'move';
   }
@@ -441,17 +531,52 @@ async function doAbility(u, ab, target) {
   await afterRatAction(u);
 }
 
-async function doMove(u, x, z) {
+async function doMove(u, targetX, targetZ) {
   if (G.mode === 'busy') return;
-  const R = World.reach(G.world, u, u.def.mob * u.ap);
-  const c = R.cost(x, z);
-  if (c == null || c === 0) return;
+  const w = G.world;
+  const R = World.reach(w, u, u.mob * u.ap);
+  let x = targetX, z = targetZ;
+  let c = R.cost(x, z);
+
+  // 클릭한 칸이 이동 불가 칸(엄폐물, 장애물, 타 유닛 등)인 경우:
+  // 인접 칸(4방향) 중 이동 가능하고 비용이 가장 적은 최적의 칸 자동 탐색
+  if (c == null || c === 0) {
+    const clickedTile = World.tile(w, targetX, targetZ);
+    if (clickedTile) {
+      let bestAdj = null, minCost = 999;
+      for (const [dx, dz] of World.DIRS4) {
+        const nx = targetX + dx, nz = targetZ + dz;
+        const ac = R.cost(nx, nz);
+        if (ac != null && ac > 0 && ac < minCost) {
+          minCost = ac;
+          bestAdj = { x: nx, z: nz };
+        }
+      }
+      if (bestAdj) {
+        x = bestAdj.x;
+        z = bestAdj.z;
+        c = minCost;
+      }
+    }
+  }
+
+  if (c == null || c === 0) {
+    View.popup(u, '이동 불가', '#ff6b5b');
+    return;
+  }
+
   G.mode = 'busy';
-  u.ap -= c <= u.def.mob ? 1 : 2;
+  u.ap -= c <= u.mob ? 1 : 2;
   await moveUnit(u, R.path(x, z));
   G.mode = 'move';
   for (const r of rats()) idleFacing(r);
   await afterRatAction(u);
+}
+
+// 칸 대상 능력: 사거리 안 + 박격포는 분대가 보는 칸만
+function tileTargetOk(u, ab, t) {
+  if (!t || World.dist(u, t) > ABILITIES[ab].range) return false;
+  return ab !== 'mortar' || G.vis.has(t.z * G.world.W + t.x);
 }
 
 // 이 유닛이 지금 쓸 수 있는 능력
@@ -522,6 +647,12 @@ function bestTile(c, budget, wantCover) {
   return best;
 }
 
+// 확인사살할 쓰러진 쥐 (보이고 가까운 것)
+function downedInReach(c) {
+  const list = G.units.filter((r) => r.side === 'rat' && r.downed && World.dist(c, r) <= RULES.executeRange && World.canSee(G.world, c, r));
+  return list.sort((a, b) => World.dist(c, a) - World.dist(c, b))[0] || null;
+}
+
 async function catTurn() {
   const w = G.world;
   for (const c of cats()) {
@@ -538,15 +669,18 @@ async function catTurn() {
     }
     if (emp && emp.emplacement === 'hmg' && shots.length) { await shoot(c, shots[0].r, { heavy: true }); continue; }
     // 2) 지금 자리에서 좋은 사격이면 그대로 쏨
-    const here = World.coverAgainst(w, c, rats()[0]);
-    if (shots.length && shots[0].h.hit >= 55 && !here.flanked) { await catAttack(c, shots); continue; }
+    const flankedHere = shots.some((s) => World.coverAgainst(w, c, s.r).flanked);
+    if (shots.length && shots[0].h.hit >= 55 && !flankedHere) { await catAttack(c, shots); continue; }
+    // 2.5) 좋은 사격이 없으면 쓰러진 쥐 확인사살
+    const finishOff = downedInReach(c);
+    if (finishOff && c.ammo > 0) { await execute(c, finishOff); continue; }
     // 3) 수류탄: 두 마리 이상 모였거나 엄폐 뒤 쥐
     if (c.grenades > 0) {
       const g = clusterTarget(c, 9, 2);
       if (g) { say(`${c.name} 수류탄!`, 'warn'); await throwGrenade(c, g.x, g.z); continue; }
     }
     // 4) 더 나은 자리로 이동 후 사격
-    const spot = bestTile(c, c.def.mob, false);
+    const spot = bestTile(c, c.mob, false);
     if (spot && spot.cost > 0) {
       await moveUnit(c, spot.path);
       if (!c.alive) continue;
@@ -558,7 +692,9 @@ async function catTurn() {
       const tgt = clusterTarget(c);
       if (tgt) { G.shells--; say(`${c.name} 박격포 사격!`, 'warn'); await throwGrenade(c, tgt.x, tgt.z, { mortar: true }); continue; }
     }
+    const finishAfter = downedInReach(c);
     if (after.length && after[0].h.hit >= 25) await catAttack(c, after);
+    else if (finishAfter && c.ammo > 0) await execute(c, finishAfter);
     else { c.overwatch = true; if (c.visible) View.popup(c, '경계', '#ff9f8f'); }
     await sleep(120);
   }
@@ -566,7 +702,7 @@ async function catTurn() {
 }
 
 async function catAttack(c, shots) {
-  if (c.ammo <= 0) { c.ammo = WEAPONS[c.def.weapon].clip; if (c.visible) View.popup(c, '재장전', '#d8d0b8'); Sound.reload(); await sleep(300); return; }
+  if (c.ammo <= 0) { reload(c); Sound.reload(); await sleep(300); return; }
   const best = shots[0];
   if (c.def.weapon === 'lmg' && best.h.hit < 45 && c.ammo >= 2 && !best.r.suppressedBy) {
     best.r.suppressedBy = c; c.suppressing = best.r; c.ammo--;
