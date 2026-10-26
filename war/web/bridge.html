@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>그림 중계</title>
+<body style="font:14px sans-serif;background:#222;color:#ddd">
+<p>ChatGPT 창 ↔ 로컬 서버 그림 중계 (이 창은 열어 두기)</p>
+<pre id="log"></pre>
+<script>
+// opener(ChatGPT 창)가 보내는 요청:
+//  {op:'get', path:'/art/src/ref_rat.png', id}  → {op:'got', id, buf, type}
+//  {op:'put', name:'rat_body.png', buf, id}      → art/src/gpt/ 에 저장 → {op:'put-ok', id, msg}
+const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
+window.addEventListener('message', async (e) => {
+  const m = e.data || {};
+  try {
+    if (m.op === 'get') {
+      const r = await fetch(m.path);
+      const buf = await r.arrayBuffer();
+      e.source.postMessage({ op: 'got', id: m.id, buf, type: r.headers.get('content-type') }, e.origin, [buf]);
+      log('보냄 ' + m.path + ' ' + buf.byteLength);
+    } else if (m.op === 'put') {
+      const r = await fetch('/upload?name=' + encodeURIComponent(m.name), { method: 'POST', body: m.buf });
+      const msg = await r.text();
+      e.source.postMessage({ op: 'put-ok', id: m.id, msg }, e.origin);
+      log('저장 ' + m.name + ' ' + msg);
+    }
+  } catch (err) {
+    e.source.postMessage({ op: 'err', id: m.id, msg: String(err) }, e.origin);
+    log('오류 ' + err);
+  }
+});
+if (window.opener) window.opener.postMessage({ op: 'bridge-ready' }, '*');
+log('준비');
+</script>
+</body>

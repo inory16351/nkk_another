@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>슈퍼맨 쥐 · 전투 데모</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1d2633; overflow: hidden; font-family: 'Pretendard', 'Malgun Gothic', sans-serif; }
+  #wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; cursor: none; }
+  .ov { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; background: rgba(20, 30, 45, .55); text-align: center; gap: 14px; cursor: default; }
+  .ov.on { display: flex; }
+  .ov h1 { margin: 0; font-size: 46px; letter-spacing: 1px; text-shadow: 0 3px 0 rgba(0,0,0,.25); }
+  .ov p { margin: 0; font-size: 17px; line-height: 1.7; opacity: .92; }
+  .ov .keys { background: rgba(255,255,255,.12); border-radius: 12px; padding: 12px 22px; }
+  .ov button { font: inherit; font-size: 20px; padding: 10px 34px; border: 0; border-radius: 999px; background: #e9503f; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #a8342a; }
+  .ov button:active { transform: translateY(3px); box-shadow: 0 1px 0 #a8342a; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv" width="1600" height="900"></canvas></div>
+<div class="ov on" id="title">
+  <h1>슈퍼맨 쥐 · 전투 데모</h1>
+  <p>연구자료를 노리는 하늘 고양이와 맹금류를 막아라!</p>
+  <p class="keys">WASD / 방향키 = 날아갈 방향 &nbsp;·&nbsp; 마우스 = 조준, 왼쪽 클릭(누르고 있기) = 사격 &nbsp;·&nbsp; Space = 부스트<br>쏘지 않으면 체력이 회복돼요 · 매가 빨간 점선을 그으면 피하기 · 적은 움직이니 앞질러 쏘기</p>
+  <button id="startBtn">출격</button>
+</div>
+<div class="ov" id="result">
+  <h1 id="resTitle"></h1>
+  <p id="resText"></p>
+  <button id="againBtn">다시 출격</button>
+</div>
+<script src="../art/sprites/sprites.js"></script>
+<script src="stages.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

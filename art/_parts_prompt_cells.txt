@@ -1,0 +1,22 @@
+
+Cells, left to right, top to bottom:
+Row 1:
+ 1. HEAD: the whole head with HEADWEAR, ears and face, side view facing right, cut flat at the bottom of the neck.
+ 2. TORSO: chest and belly only (shirt / armor / tabard), NO head, NO arms, NO legs, NO cape, drawn whole. Upright. Flat cut at the neck (top) and at the waist (bottom).
+ 3. HIPS: the short pelvis piece with the belt and the skirt / tunic hem / robe bottom as in the attached image, NO legs. Flat cut at the top.
+ 4. CAPE / CLOAK (if the character has one, else a small leather pouch): the cape alone, hanging straight down, seen from the side.
+Row 2:
+ 5. NEAR UPPER ARM: hanging straight DOWN, with a big ROUNDED SHOULDER at the top (shoulder pad / pauldron included if any), rounded elbow at the bottom.
+ 6. NEAR FOREARM + HAND: hanging straight DOWN, rounded elbow at the top, the hand at the bottom closed in a fist as if gripping a pole (EMPTY fist, no weapon).
+ 7. FAR UPPER ARM: the same as cell 5 (the other arm), slightly darker in color.
+ 8. FAR FOREARM + HAND: the same as cell 6 (the other arm, open hand), slightly darker in color.
+Row 3:
+ 9. NEAR THIGH: hanging straight DOWN, rounded hip at the top, rounded knee at the bottom.
+10. NEAR SHIN + FOOT: hanging straight DOWN, rounded knee at the top, the foot / boot at the bottom with the toe pointing RIGHT.
+11. FAR THIGH: same as cell 9, slightly darker.
+12. FAR SHIN + FOOT: same as cell 10, slightly darker.
+Row 4:
+13. WEAPON alone (no hand), drawn VERTICAL with the grip / handle at the BOTTOM and the tip / head pointing UP; a crossbow is drawn HORIZONTAL pointing RIGHT instead.
+14. TAIL alone (if the character has a tail, else leave the cell empty): the whole tail drawn as one smooth curve hanging from the top-left.
+15. (leave empty)
+16. (leave empty)

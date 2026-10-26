@@ -1,0 +1,8 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: buildings.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x1024, solid flat MAGENTA background (#FF00FF) around the objects, no text, no shadows on the background.
+- A sprite SHEET of 6 separate small medieval BUILDINGS for a mouse kingdom base, in a 3 columns x 2 rows grid, each building centered in its own 512x512 cell with clear magenta margins, nothing touching cell borders, all seen from the SAME slightly-elevated FRONT view.
+- Row 1: (1) TRAINING YARD: a wooden fence ring with straw training dummies and a weapon rack. (2) BLACKSMITH: a small stone forge with a glowing anvil, chimney with smoke, hanging swords. (3) CHEESE TAVERN: a cozy timber-framed tavern with a big hanging cheese-wheel sign.
+- Row 2: (4) CHAPEL: a small white stone chapel with a golden chalice symbol and stained glass window. (5) WAR ROOM: a grand round pavilion tent in blue and gold (the round table inside, visible through the open flap). (6) SORTIE GATE: a wooden castle gate with two torches and a blue banner.
+- STYLE: EXACTLY the same clean FLAT 2D cartoon illustration style as the attached images (flat colors, one soft shadow tone and one highlight tone, hard edges, no black outlines, no gradients, no texture noise). Cozy ARTHURIAN medieval fantasy world of a mouse kingdom (Camelot-like). No text, no characters.

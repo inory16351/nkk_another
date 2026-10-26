@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기사 쥐 외전</title>
+<style>
+  :root { --bg: #12151f; --panel: rgba(28,32,46,.94); --line: #3a4360; --text: #f1f2f7; --sub: #a3abc2; --red: #c8372d; --gold: #e3a72f; --blue: #3d7fd9; --green: #4fae62; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--text); font-family: "Malgun Gothic", "맑은 고딕", system-ui, sans-serif; overflow: hidden; }
+  #wrap { position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; transform-origin: 0 0; }
+  canvas { display: block; width: 1600px; height: 900px; }
+  #ui { position: absolute; inset: 0; pointer-events: none; }
+  #ui > * { pointer-events: auto; }
+  button { background: #2a3150; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font: inherit; font-size: 15px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--gold); background: #343d63; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--red); border-color: #e05a50; font-weight: 700; }
+  button.gold { background: #8a6418; border-color: var(--gold); }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .panel h2 { margin: 0 0 6px; font-size: 24px; }
+  .panel .sub { color: var(--sub); font-size: 14px; margin-bottom: 12px; }
+  .close { position: absolute; right: 12px; top: 10px; padding: 4px 10px; }
+  .res { position: absolute; right: 18px; top: 14px; display: flex; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 16px; font-weight: 700; }
+  .res span b { color: var(--gold); }
+  .list { display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow: auto; padding-right: 4px; }
+  .row { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.05); border: 1px solid transparent; border-radius: 10px; padding: 8px 12px; }
+  .row.sel { border-color: var(--gold); background: rgba(227,167,47,.12); }
+  .row .nm { font-weight: 700; font-size: 16px; }
+  .row .meta { color: var(--sub); font-size: 13px; }
+  .row .grow { flex: 1; }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 7px; border-radius: 6px; background: #3a4360; margin-left: 6px; }
+  .tag.red { background: #7a2620; } .tag.gold { background: #7a5a14; } .tag.green { background: #2c6a3a; }
+  .stats { display: grid; grid-template-columns: repeat(5, auto); gap: 4px 16px; font-size: 13px; color: var(--sub); }
+  .stats b { color: var(--text); }
+  .tree { display: grid; grid-template-columns: 70px 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .tree .rk { color: var(--gold); font-weight: 700; align-self: center; }
+  .sk { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; background: rgba(255,255,255,.04); }
+  .sk b { font-size: 14px; display: block; margin-bottom: 2px; }
+  .sk.on { border-color: var(--gold); background: rgba(227,167,47,.15); }
+  .sk.off { opacity: .45; }
+  .sk.pick { cursor: pointer; border-color: #7aa7ff; }
+  .sk.pick:hover { background: rgba(61,127,217,.25); }
+  #skillbar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: none; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; align-items: stretch; }
+  #skillbar .who { min-width: 170px; padding: 2px 8px; border-right: 1px solid var(--line); }
+  #skillbar .who b { font-size: 16px; display: block; }
+  #skillbar .who small { color: var(--sub); font-size: 12px; }
+  .sbtn { width: 118px; text-align: left; font-size: 13px; padding: 6px 9px; line-height: 1.25; }
+  .sbtn small { display: block; color: var(--sub); font-size: 11px; }
+  .sbtn.on { border-color: var(--gold); background: #4a3a14; }
+  .sbtn .cd { color: #ff8a7a; }
+  #tip { position: absolute; pointer-events: none; display: none; background: rgba(12,14,22,.95); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.5; min-width: 180px; }
+  #tip b { color: var(--gold); font-size: 15px; }
+  #log { position: absolute; left: 14px; bottom: 16px; width: 330px; max-height: 170px; overflow: hidden; font-size: 13px; color: var(--sub); background: rgba(12,14,22,.6); border-radius: 8px; padding: 8px 10px; display: none; }
+  #turn { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 18px; font-size: 17px; font-weight: 700; display: none; }
+  #btEnd { position: absolute; right: 18px; bottom: 18px; display: none; font-size: 17px; padding: 12px 22px; }
+  #cutin { position: absolute; inset: 0; pointer-events: none; display: none; }
+  #cutin .band { position: absolute; left: 0; right: 0; top: 24%; height: 44%; overflow: hidden; transform: skewY(-4deg); border-top: 4px solid var(--gold); border-bottom: 4px solid var(--gold); background: #1b2236; }
+  #cutin img { position: absolute; }
+  #cutin .bgimg { width: 110%; left: -5%; top: -30%; }
+  #cutin .face { height: 150%; right: 4%; top: -18%; }
+  #cutin .line { position: absolute; left: 7%; top: 58%; font-size: 46px; font-weight: 800; color: #fff; text-shadow: 0 3px 0 #a1261d, 0 0 18px rgba(0,0,0,.6); transform: skewY(-4deg); }
+  .center { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .btns { display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end; }
+  .title { position: absolute; left: 0; right: 0; top: 160px; text-align: center; }
+  .title h1 { font-size: 84px; margin: 0; text-shadow: 0 6px 0 #7a1e18, 0 0 30px rgba(0,0,0,.6); letter-spacing: 4px; }
+  .title p { font-size: 22px; color: #ffe7b0; text-shadow: 0 2px 6px #000; }
+  .title .btns { justify-content: center; margin-top: 40px; }
+  .title button { font-size: 22px; padding: 14px 34px; }
+  .bld-label { position: absolute; transform: translateX(-50%); background: rgba(20,24,36,.85); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-weight: 700; font-size: 15px; pointer-events: none; white-space: nowrap; }
+  .node { position: absolute; transform: translate(-50%, -50%); }
+  .node button { font-weight: 700; }
+  .node .lock { opacity: .5; }
+
+  /* ── UI 키트 그림 (art/ui, ChatGPT 생성) ── */
+  .panel { background: transparent; border: 40px solid transparent; border-image: url('../art/ui/panel.png') 58 fill / 40px stretch; border-radius: 0; padding: 14px 12px 8px; color: #3a2a18; box-shadow: none; filter: drop-shadow(0 10px 24px rgba(0,0,0,.45)); }
+  .panel h2 { color: #6b1f17; }
+  .panel .sub, .panel .meta, .panel .stats { color: #6b5a40; }
+  .panel .stats b { color: #2a1d10; }
+  .panel .row { background: rgba(120,90,40,.10); }
+  .panel .row.sel { background: rgba(227,167,47,.28); border-color: #b8860b; }
+  .panel .sk { background: rgba(255,255,255,.45); border-color: #c9b48a; }
+  .panel .sk.on { background: rgba(227,167,47,.35); border-color: #b8860b; }
+  .panel .sk.pick { border-color: #3d7fd9; background: rgba(61,127,217,.15); }
+  .panel .tree .rk { color: #8a5a10; }
+  .panel .tag { color: #fff; }
+  button { border: 12px solid transparent; border-image: url('../art/ui/btn_blue.png') 44 fill / 12px stretch; background: transparent; border-radius: 0; padding: 2px 10px; color: #fff; font-weight: 700; text-shadow: 0 2px 0 rgba(0,0,0,.45); }
+  button:hover:not(:disabled) { background: transparent; filter: brightness(1.15); border-color: transparent; }
+  button.primary { border-image-source: url('../art/ui/btn_red.png'); background: transparent; border-color: transparent; }
+  button.gold { border-image-source: url('../art/ui/btn_gold.png'); background: transparent; border-color: transparent; color: #3a2408; text-shadow: 0 1px 0 rgba(255,255,255,.4); }
+  button:disabled { border-image-source: url('../art/ui/btn_grey.png'); opacity: .75; }
+  .sbtn { border-image-source: url('../art/ui/btn_blue.png'); width: 150px; padding: 2px 6px; line-height: 1.2; }
+  .sbtn small:last-child { display: none; }
+  #skillbar .who { min-width: 190px; }
+  .sbtn small { color: #d8e2ff; }
+  .sbtn.on { border-image-source: url('../art/ui/btn_gold.png'); background: transparent; color: #3a2408; text-shadow: none; }
+  .sbtn.on small { color: #4a3410; }
+  #skillbar, .res, #turn, .bld-label { border: 26px solid transparent; border-image: url('../art/ui/panel.png') 58 fill / 26px stretch; background: transparent; border-radius: 0; color: #3a2a18; }
+  #skillbar { padding: 0; }
+  #skillbar .who small { color: #6b5a40; }
+  #skillbar .who { border-right-color: #c9b48a; }
+  .res { padding: 0 4px; align-items: center; }
+  .res span { display: flex; align-items: center; gap: 4px; }
+  .res img { height: 30px; }
+  .res span b { color: #8a5a10; }
+  #turn { border: 0; border-image: none; background: url('../art/ui/ribbon.png') center / 100% 100% no-repeat; color: #fff; padding: 14px 70px 22px; text-shadow: 0 2px 0 #6b1f17; font-size: 18px; }
+  .bld-label { border-width: 16px; border-image-width: 16px; padding: 0 6px; font-size: 15px; }
+  .title h1 { color: #fff; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv" width="1600" height="900"></canvas>
+  <div id="ui"></div>
+  <div id="cutin"><div class="band"><img class="bgimg" src="../art/nkk/face_bg.png" alt=""><img class="face" src="../art/nkk/face_close.png" alt=""></div><div class="line">성검 해방!</div></div>
+</div>
+<script src="../art/knight/rig.js"></script><script src="../art/knight/anims.js"></script>
+<script src="../art/lancer/rig.js"></script><script src="../art/lancer/anims.js"></script>
+<script src="../art/archer/rig.js"></script><script src="../art/archer/anims.js"></script>
+<script src="../art/mage/rig.js"></script><script src="../art/mage/anims.js"></script>
+<script src="../art/priest/rig.js"></script><script src="../art/priest/anims.js"></script>
+<script src="../art/h_spear/rig.js"></script><script src="../art/h_spear/anims.js"></script>
+<script src="../art/h_xbow/rig.js"></script><script src="../art/h_xbow/anims.js"></script>
+<script src="../art/h_boss/rig.js"></script><script src="../art/h_boss/anims.js"></script>
+<script src="../art/c_scout/rig.js"></script><script src="../art/c_scout/anims.js"></script>
+<script src="../art/c_knight/rig.js"></script><script src="../art/c_knight/anims.js"></script>
+<script src="rig_engine.js"></script>
+<script src="motions.js"></script>
+<script src="game/data.js"></script>
+<script src="game/battle.js"></script>
+<script src="game/main.js"></script>
+</body>
+</html>

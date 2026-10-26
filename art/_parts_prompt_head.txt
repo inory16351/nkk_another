@@ -1,0 +1,9 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: parts.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x1536 square, solid flat MAGENTA background (#FF00FF) everywhere behind the drawings. No text, no letters, no numbers, no labels, no grid lines, no frames, no shadows on the background.
+- An exact grid of 4 columns x 4 rows (each cell 384x384). Each drawing sits centered in its own cell with a clear magenta margin; drawings must NOT touch or cross cell borders.
+- These are CUT-OUT BODY PARTS of ONE character for a 2D paper-doll (cutout) animation rig. The FIRST attached image shows the finished character (side view facing right): copy its design, outfit, colors, proportions and flat art style EXACTLY. Every part must be at the SAME SCALE as in the attached image (as if cut out of it), all in pure SIDE VIEW facing RIGHT.
+- Each part is drawn COMPLETE, including the areas that are hidden by other parts in the full picture (for example the torso is drawn whole where the arm normally covers it).
+- JOINT ENDS: limbs end in ROUNDED caps at the joints (shoulder, elbow, hip, knee) so they overlap smoothly when rotated; necks and waists are cut flat.
+- STYLE: the same clean FLAT 2D cartoon illustration as the attached image: flat colors with one soft shadow tone and one highlight tone, hard edges, no black outlines, no gradients, no texture noise, no glow.

@@ -1,0 +1,70 @@
+{
+ "scale": 0.5,
+ "views": {
+  "front": {
+   "src": "full_front.png",
+   "ground": [255, 965],
+   "cap": 22,
+   "bones": {
+    "torso": {"parent": null,    "a": [255, 740], "b": [255, 200]},
+    "head":  {"parent": "torso", "a": [262, 200], "b": [262, 30], "cap": 30},
+    "legL":  {"parent": "torso", "a": [170, 750], "b": [160, 955]},
+    "legR":  {"parent": "torso", "a": [355, 750], "b": [380, 955]},
+    "tail":  {"parent": "torso", "a": [125, 580], "b": [80, 760], "cap": 0}
+   },
+   "rules": [
+    {"to": "tail", "poly": [[55, 555], [138, 555], [138, 785], [55, 785]], "color": "light"},
+    {"to": "head", "poly": [[175, 20], [350, 20], [350, 200], [175, 200]]},
+    {"to": "legL", "poly": [[90, 762], [256, 762], [256, 1000], [90, 1000]]},
+    {"to": "legR", "poly": [[256, 762], [450, 762], [450, 1000], [256, 1000]]}
+   ],
+   "default": ["torso"],
+   "order": ["tail", "legL", "legR", "torso", "head"]
+  },
+  "side": {
+   "src": "full_side.png",
+   "ground": [215, 965],
+   "cap": 22,
+   "bones": {
+    "torso":  {"parent": null,     "a": [210, 740], "b": [225, 185]},
+    "head":   {"parent": "torso",  "a": [230, 185], "b": [300, 60], "cap": 30},
+    "arm":    {"parent": "torso",  "a": [195, 275], "b": [290, 390], "keep": true, "cap": 0},
+    "thighF": {"parent": "torso",  "a": [170, 745], "b": [165, 850]},
+    "shinF":  {"parent": "thighF", "a": [165, 850], "b": [165, 950]},
+    "thighN": {"parent": "torso",  "a": [255, 745], "b": [260, 850]},
+    "shinN":  {"parent": "thighN", "a": [260, 850], "b": [262, 950]},
+    "tail":   {"parent": "torso",  "a": [130, 600], "b": [30, 740], "cap": 0}
+   },
+   "rules": [
+    {"to": "tail", "poly": [[5, 545], [142, 545], [142, 760], [5, 760]], "color": "light"},
+    {"to": "head", "poly": [[140, 20], [345, 20], [345, 188], [140, 188]]},
+    {"to": "arm", "poly": [[128, 268], [262, 268], [300, 362], [530, 362], [530, 535], [262, 535], [252, 470], [128, 470]]},
+    {"to": ["thighF", "shinF"], "poly": [[100, 755], [212, 755], [212, 1000], [100, 1000]]},
+    {"to": ["thighN", "shinN"], "poly": [[212, 755], [330, 755], [330, 1000], [212, 1000]]}
+   ],
+   "fill": {"torso": {"from": ["arm"], "poly": [[128, 268], [262, 268], [262, 470], [128, 470]]}},
+   "default": ["torso"],
+   "order": ["tail", "thighF", "shinF", "torso", "thighN", "shinN", "head", "arm"]
+  },
+  "back": {
+   "src": "full_back.png",
+   "ground": [255, 965],
+   "cap": 22,
+   "bones": {
+    "torso": {"parent": null,    "a": [255, 740], "b": [255, 200]},
+    "head":  {"parent": "torso", "a": [262, 200], "b": [262, 30], "cap": 30},
+    "legL":  {"parent": "torso", "a": [170, 750], "b": [160, 955]},
+    "legR":  {"parent": "torso", "a": [345, 750], "b": [365, 955]},
+    "tail":  {"parent": "torso", "a": [280, 560], "b": [400, 780], "cap": 0}
+   },
+   "rules": [
+    {"to": "tail", "poly": [[255, 530], [430, 530], [430, 805], [255, 805]], "color": "light"},
+    {"to": "head", "poly": [[165, 20], [370, 20], [370, 195], [165, 195]]},
+    {"to": "legL", "poly": [[90, 770], [256, 770], [256, 1000], [90, 1000]]},
+    {"to": "legR", "poly": [[256, 770], [450, 770], [450, 1000], [256, 1000]]}
+   ],
+   "default": ["torso"],
+   "order": ["legL", "legR", "torso", "head", "tail"]
+  }
+ }
+}

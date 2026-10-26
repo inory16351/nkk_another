@@ -1,0 +1,9 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: tiles_sheet.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x1024 landscape, solid flat MAGENTA background (#FF00FF) everywhere around the objects, no text, no frame, no shadows on the background.
+- A sprite SHEET of 6 separate objects in a 3 columns x 2 rows grid, each object centered in its own 512x512 cell with clear magenta space around it, nothing touching the cell borders.
+- All objects are seen from the SAME ISOMETRIC QUARTER VIEW camera (2:1 isometric diamond floor, camera looking down at about 30 degrees), as tiles for a tactics game like XCOM.
+- Row 1: (1) one isometric GRASS floor tile: a flat diamond 400 px wide and 200 px tall seen from above with a thin earth side edge below (about 30 px thick), short flat grass. (2) one isometric DIRT PATH floor tile, same diamond size and edge. (3) one isometric COBBLESTONE floor tile, same diamond size and edge.
+- Row 2: (4) a stack of two WOODEN CRATES sitting on one tile footprint (low cover, about as tall as half the diamond width). (5) a short thick STONE WALL segment with a little moss, occupying one tile footprint, about twice as tall as the crates (full cover). (6) a small round leafy BUSH on one tile footprint.
+STYLE: the same clean FLAT 2D cartoon game illustration style as the attached character reference (flat colors, one soft shadow tone and one highlight tone, hard edges, no black outlines, no texture noise, no gradients). Cozy medieval fantasy countryside of a mouse kingdom (everything is mouse-sized: crates, fences, stones).

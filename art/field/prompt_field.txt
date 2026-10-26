@@ -1,0 +1,7 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: field.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x864 landscape (16:9), full-bleed scenery, no characters, no text, no frame, no UI.
+- A BATTLE STAGE background for a side-view mobile RPG like Princess Connect Re:Dive: the camera looks at the field from the side and slightly from above, so the flat grassy GROUND occupies the whole LOWER 62% of the image as one wide open, gently receding field (5 rows of small characters will stand on it at different depths, all the way from the left edge to the right edge). The ground must be OPEN and UNCLUTTERED: soft grass, a few tiny flowers, a faint worn dirt patch, NO rocks, NO fences, NO bushes, NO objects on the playable ground.
+- Upper 38%: medieval fantasy countryside of a mouse kingdom: a line of round trees and hedges along the far edge of the field, rolling hills, a small castle far away on the right, bright sky with flat clouds.
+- STYLE: the same clean FLAT 2D cartoon illustration style as the attached character (flat colors, one soft shadow tone and one highlight tone, hard edges, no black outlines, no gradients, no texture noise). Slightly desaturated so the characters stand out.

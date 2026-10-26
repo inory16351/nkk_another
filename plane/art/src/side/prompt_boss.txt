@@ -1,0 +1,8 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: boss.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x1024 landscape. ONE subject, centered, filling about 90% of the image width, fully inside the image.
+- SUBJECT: the boss of the flying cats: a big fluffy CREAM LONG-HAIRED CAT (like the fluffy cream cat in the attached cat reference) with a smug face and a small captain hat, riding in the gondola of a BIG BLIMP AIRSHIP: a fat round grey-blue canvas gas envelope with a cat-ear shape on top and a fish-shaped tail fin at the back, under it a wooden gondola with two small black cannons pointing RIGHT, ropes, a propeller at the back.
+- VIEW: pure SIDE VIEW (profile), the airship flies to the RIGHT (cannons and cat face point RIGHT).
+- solid flat MAGENTA background (#FF00FF) everywhere behind the subject: no ground, no shadow, no clouds, no vignette, no frame. The subject itself must not contain magenta or purple-pink; small soft-pink mouse ears, nose, feet and tail are fine.
+- ART STYLE (most important): EXACTLY the art style of the attached reference images (cut-out body parts of characters from our mobile game): soft flat 2D vector illustration, muted natural colors, simple rounded shapes, flat fills with only one subtle soft shadow tone, very fine subtle paper-like texture at most, NO black outlines, NO line art, NO glow, NO gradients, NO anime style, NO motion lines, NO speed effects, NO text, NO letters, NO logos. Animals look fairly natural (realistic proportions, side profile), not chibi.

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>리그 뷰어</title>
+<style>
+  body { margin: 0; background: #171b26; color: #eef0f6; font-family: "Malgun Gothic", system-ui, sans-serif; }
+  header { padding: 12px 20px; border-bottom: 1px solid #343c55; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 19px; }
+  button, select { background: #222839; color: #eef0f6; border: 1px solid #343c55; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  button.on { background: #c8372d; border-color: #c8372d; }
+  label { color: #9aa3bb; font-size: 13px; }
+  canvas { display: block; width: 100%; max-width: 1600px; margin: 0 auto; }
+  a { color: #e3a72f; }
+</style>
+</head>
+<body>
+<header>
+  <h1>리그 뷰어</h1>
+  <select id="who"></select>
+  <span id="bar"></span>
+  <label><input type="checkbox" id="bones"> 뼈 보기</label>
+  <label>속도 <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option></select></label>
+  <a href="game.html">▶ 게임</a>
+</header>
+<canvas id="cv" width="1600" height="760"></canvas>
+<script src="../art/knight/rig.js"></script><script src="../art/knight/anims.js"></script>
+<script src="../art/lancer/rig.js"></script><script src="../art/lancer/anims.js"></script>
+<script src="../art/archer/rig.js"></script><script src="../art/archer/anims.js"></script>
+<script src="../art/mage/rig.js"></script><script src="../art/mage/anims.js"></script>
+<script src="../art/priest/rig.js"></script><script src="../art/priest/anims.js"></script>
+<script src="../art/h_spear/rig.js"></script><script src="../art/h_spear/anims.js"></script>
+<script src="../art/h_xbow/rig.js"></script><script src="../art/h_xbow/anims.js"></script>
+<script src="../art/h_boss/rig.js"></script><script src="../art/h_boss/anims.js"></script>
+<script src="../art/c_scout/rig.js"></script><script src="../art/c_scout/anims.js"></script>
+<script src="../art/c_knight/rig.js"></script><script src="../art/c_knight/anims.js"></script>
+<script src="rig_engine.js"></script>
+<script src="motions.js"></script>
+<script src="game/data.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>

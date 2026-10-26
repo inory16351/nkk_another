@@ -1,0 +1,336 @@
+{
+ "scale": 0.5,
+ "views": {
+  "side": {
+   "src": "full_side.png",
+   "ground": [
+    380,
+    1390
+   ],
+   "cap": 24,
+   "bones": {
+    "hips": {
+     "parent": null,
+     "a": [
+      360,
+      810
+     ],
+     "b": [
+      360,
+      950
+     ]
+    },
+    "torso": {
+     "parent": "hips",
+     "a": [
+      360,
+      800
+     ],
+     "b": [
+      360,
+      560
+     ],
+     "bias": 40
+    },
+    "head": {
+     "parent": "torso",
+     "a": [
+      360,
+      560
+     ],
+     "b": [
+      360,
+      260
+     ],
+     "cap": 40
+    },
+    "upperArm": {
+     "parent": "torso",
+     "a": [
+      400,
+      640
+     ],
+     "b": [
+      500,
+      650
+     ]
+    },
+    "foreArm": {
+     "parent": "upperArm",
+     "a": [
+      500,
+      650
+     ],
+     "b": [
+      620,
+      650
+     ]
+    },
+    "weapon": {
+     "parent": "foreArm",
+     "a": [
+      620,
+      650
+     ],
+     "b": [
+      1000,
+      580
+     ],
+     "keep": true,
+     "cap": 0
+    },
+    "thighN": {
+     "parent": "hips",
+     "a": [
+      320,
+      960
+     ],
+     "b": [
+      270,
+      1100
+     ]
+    },
+    "shinN": {
+     "parent": "thighN",
+     "a": [
+      270,
+      1100
+     ],
+     "b": [
+      230,
+      1310
+     ]
+    },
+    "thighF": {
+     "parent": "hips",
+     "a": [
+      420,
+      960
+     ],
+     "b": [
+      440,
+      1100
+     ]
+    },
+    "shinF": {
+     "parent": "thighF",
+     "a": [
+      440,
+      1100
+     ],
+     "b": [
+      450,
+      1300
+     ]
+    },
+    "cape": {
+     "parent": "torso",
+     "a": [
+      280,
+      600
+     ],
+     "b": [
+      150,
+      950
+     ]
+    }
+   },
+   "under": {
+    "hips": {
+     "from": [
+      "torso",
+      "cape"
+     ],
+     "poly": [
+      [
+       210,
+       720
+      ],
+      [
+       520,
+       720
+      ],
+      [
+       520,
+       795
+      ],
+      [
+       210,
+       795
+      ]
+     ]
+    }
+   },
+   "clones": {
+    "upperArmF": {
+     "from": "upperArm",
+     "parent": "torso",
+     "pivot": [
+      370,
+      630
+     ],
+     "dark": 0.68
+    },
+    "foreArmF": {
+     "from": "foreArm",
+     "parent": "upperArmF",
+     "dark": 0.68
+    }
+   },
+   "rules": [
+    {
+     "to": "foreArm",
+     "poly": [
+      [
+       540,
+       600
+      ],
+      [
+       680,
+       600
+      ],
+      [
+       680,
+       720
+      ],
+      [
+       540,
+       720
+      ]
+     ],
+     "color": "pink"
+    },
+    {
+     "to": "weapon",
+     "grow": 6,
+     "poly": [
+      [
+       430,
+       500
+      ],
+      [
+       1010,
+       500
+      ],
+      [
+       1010,
+       700
+      ],
+      [
+       720,
+       720
+      ],
+      [
+       560,
+       700
+      ],
+      [
+       430,
+       640
+      ]
+     ],
+     "color": "notpink"
+    },
+    {
+     "to": "head",
+     "poly": [
+      [
+       80,
+       80
+      ],
+      [
+       650,
+       80
+      ],
+      [
+       650,
+       560
+      ],
+      [
+       470,
+       600
+      ],
+      [
+       300,
+       575
+      ],
+      [
+       150,
+       520
+      ],
+      [
+       80,
+       460
+      ]
+     ]
+    },
+    {
+     "to": "cape",
+     "poly": [
+      [
+       30,
+       540
+      ],
+      [
+       300,
+       540
+      ],
+      [
+       260,
+       1060
+      ],
+      [
+       30,
+       1060
+      ]
+     ]
+    },
+    {
+     "to": "hips",
+     "poly": [
+      [
+       230,
+       790
+      ],
+      [
+       500,
+       790
+      ],
+      [
+       500,
+       970
+      ],
+      [
+       230,
+       970
+      ]
+     ]
+    }
+   ],
+   "default": [
+    "torso",
+    "upperArm",
+    "foreArm",
+    "thighN",
+    "shinN",
+    "thighF",
+    "shinF"
+   ],
+   "order": [
+    "cape",
+    "foreArmF",
+    "upperArmF",
+    "shinF",
+    "thighF",
+    "shinN",
+    "thighN",
+    "hips",
+    "torso",
+    "head",
+    "weapon",
+    "upperArm",
+    "foreArm"
+   ]
+  }
+ }
+}

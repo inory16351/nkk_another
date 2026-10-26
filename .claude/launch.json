@@ -1,0 +1,32 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rig-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "5320"
+      ],
+      "port": 5320
+    },
+    {
+      "name": "plane-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "plane/tools/serve.js",
+        "5321"
+      ],
+      "port": 5321
+    },
+    {
+      "name": "war-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "war/tools/serve.js",
+        "5322"
+      ],
+      "port": 5322
+    }
+  ]
+}

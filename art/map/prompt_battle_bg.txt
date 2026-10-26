@@ -1,0 +1,6 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: battle_bg.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x864 landscape (16:9), full-bleed scenery, no characters, no text, no frame.
+- SIDE-VIEW battle stage background like a JRPG battle screen: a flat grassy ground strip across the bottom 30% seen from the side (horizon slightly above the middle), a dirt path along the ground, wooden fences and haystacks in the mid distance, rolling hills and a tiny castle far away, bright sky with flat clouds. Leave the central ground area open and uncluttered for two small characters to fight on.
+STYLE: the same clean FLAT 2D cartoon game illustration style as the attached character reference (flat colors, one soft shadow tone and one highlight tone, hard edges, no black outlines, no texture noise, no gradients). Cozy medieval fantasy countryside of a mouse kingdom (everything is mouse-sized: crates, fences, stones).

@@ -1,0 +1,17 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: props.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+ART STYLE (most important): EXACTLY the art style of the attached reference images from our mobile game: soft flat 2D vector illustration, simple clean shapes, flat fills with one soft shadow tone and one subtle highlight tone, hard clean edges, NO black outlines, NO line art, NO gradients, NO texture noise, NO glow, NO anime style, NO motion lines, NO text, NO letters, NO numbers, NO logos, NO real-world political symbols or insignia (no swastikas, no real flags). Mood: grim World War 2 war story, muted desaturated dusty military colors (olive drab, khaki, field grey, mud brown).
+Background: solid flat MAGENTA (#FF00FF) everywhere behind the drawings: no floor, no ground shadow, no vignette, no frame, no grid lines. The drawings themselves must not contain magenta or purple. Pink mouse ears, nose, hands and tail are fine.
+
+Image spec:
+- 1536x1536 square. An exact grid of 3 columns x 3 rows (each cell 512x512). One object per cell, standing on an invisible ground line about 30 px above the bottom of the cell, seen from a slightly high FRONT 3/4 view like the game DON'T STARVE (flat paper-cutout look: we see the front face and a little of the top), with a clear magenta margin, not touching cell borders.
+Cells, left to right, top to bottom:
+1. a LOW wall of stacked khaki SANDBAGS, wide (fills the cell width), waist-high.
+2. a HIGH ruined RED-BRICK WALL section with a broken jagged top and a few missing bricks, wide, taller than a man.
+3. a dead, burnt, leafless war-torn TREE with a broken trunk (tall, thin).
+4. a stack of two wooden military supply CRATES (low cover).
+5. a coil of BARBED WIRE on wooden X-shaped stakes.
+6. a WW2 MORTAR emplacement: a short dark-olive mortar tube on a bipod and base plate, with a small open crate of shells beside it.
+7. a WW2 heavy MACHINE GUN nest: a dark heavy machine gun on a tripod behind a short curved wall of sandbags.
+8. a wrecked burnt-out small military truck seen from the side (tall).
+9. a broken grey stone farmhouse WALL corner with an empty window hole (tall).

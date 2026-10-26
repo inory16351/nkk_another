@@ -1,0 +1,378 @@
+{
+ "version": 4,
+ "id": "c_knight",
+ "weapon": "mace",
+ "parts": {
+  "cape": {
+   "img": "parts3/cape.png",
+   "w": 124,
+   "h": 210,
+   "parent": "torso",
+   "pivot": [
+    94.0,
+    15.0
+   ],
+   "at": [
+    35.0,
+    32.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     39.0,
+     175.0
+    ]
+   }
+  },
+  "tail3": {
+   "img": "parts3/tail3.png",
+   "w": 80,
+   "h": 55,
+   "parent": "tail2",
+   "pivot": [
+    52.0,
+    52.0
+   ],
+   "at": [
+    -4.0,
+    35.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     7.0,
+     17.0
+    ]
+   }
+  },
+  "tail2": {
+   "img": "parts3/tail2.png",
+   "w": 63,
+   "h": 107,
+   "parent": "tail1",
+   "pivot": [
+    46.0,
+    100.0
+   ],
+   "at": [
+    0.0,
+    37.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     -4.0,
+     35.0
+    ]
+   }
+  },
+  "tail1": {
+   "img": "parts3/tail1.png",
+   "w": 92,
+   "h": 54,
+   "parent": "hips",
+   "pivot": [
+    75.0,
+    22.0
+   ],
+   "at": [
+    1.0,
+    111.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     0.0,
+     37.0
+    ]
+   }
+  },
+  "foreArmF": {
+   "img": "parts3/foreArmF.png",
+   "w": 100,
+   "h": 45,
+   "parent": "upperArmF",
+   "pivot": [
+    13.0,
+    31.0
+   ],
+   "at": [
+    70.0,
+    20.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     88.0,
+     16.0
+    ]
+   }
+  },
+  "upperArmF": {
+   "img": "parts3/upperArmF.png",
+   "w": 81,
+   "h": 38,
+   "parent": "torso",
+   "pivot": [
+    15.0,
+    15.0
+   ],
+   "at": [
+    81.0,
+    67.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     70.0,
+     20.0
+    ]
+   }
+  },
+  "shinF": {
+   "img": "parts3/shinF.png",
+   "w": 101,
+   "h": 111,
+   "parent": "thighF",
+   "pivot": [
+    26.0,
+    17.0
+   ],
+   "at": [
+    43.0,
+    79.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     41.0,
+     87.0
+    ]
+   }
+  },
+  "thighF": {
+   "img": "parts3/thighF.png",
+   "w": 85,
+   "h": 93,
+   "parent": "hips",
+   "pivot": [
+    33.0,
+    24.0
+   ],
+   "at": [
+    101.0,
+    126.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     43.0,
+     79.0
+    ]
+   }
+  },
+  "shinN": {
+   "img": "parts3/shinN.png",
+   "w": 92,
+   "h": 128,
+   "parent": "thighN",
+   "pivot": [
+    33.0,
+    18.0
+   ],
+   "at": [
+    31.0,
+    82.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     33.0,
+     93.0
+    ]
+   }
+  },
+  "thighN": {
+   "img": "parts3/thighN.png",
+   "w": 72,
+   "h": 96,
+   "parent": "hips",
+   "pivot": [
+    36.0,
+    27.0
+   ],
+   "at": [
+    36.0,
+    126.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     31.0,
+     82.0
+    ]
+   }
+  },
+  "hips": {
+   "img": "parts3/hips.png",
+   "w": 153,
+   "h": 128,
+   "parent": null,
+   "pivot": [
+    71.0,
+    6.0
+   ],
+   "at": [
+    270.0,
+    420.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     71.0,
+     116.0
+    ]
+   }
+  },
+  "torso": {
+   "img": "parts3/torso.png",
+   "w": 148,
+   "h": 146,
+   "parent": "hips",
+   "pivot": [
+    75.0,
+    132.0
+   ],
+   "at": [
+    71.0,
+    6.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     70.0,
+     17.0
+    ]
+   }
+  },
+  "head": {
+   "img": "parts3/head.png",
+   "w": 195,
+   "h": 237,
+   "parent": "torso",
+   "pivot": [
+    96.0,
+    215.0
+   ],
+   "at": [
+    70.0,
+    17.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     96.0,
+     65.0
+    ],
+    "top": [
+     96.0,
+     0.0
+    ]
+   }
+  },
+  "weapon": {
+   "img": "parts3/weapon.png",
+   "w": 118,
+   "h": 333,
+   "parent": "foreArm",
+   "pivot": [
+    49.0,
+    244.0
+   ],
+   "at": [
+    93.0,
+    21.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     54.0,
+     4.0
+    ],
+    "tip": [
+     54.0,
+     4.0
+    ]
+   }
+  },
+  "upperArm": {
+   "img": "parts3/upperArm.png",
+   "w": 78,
+   "h": 83,
+   "parent": "torso",
+   "pivot": [
+    13.0,
+    27.0
+   ],
+   "at": [
+    95.0,
+    72.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     68.0,
+     32.0
+    ]
+   }
+  },
+  "foreArm": {
+   "img": "parts3/foreArm.png",
+   "w": 107,
+   "h": 87,
+   "parent": "upperArm",
+   "pivot": [
+    13.0,
+    41.0
+   ],
+   "at": [
+    68.0,
+    32.0
+   ],
+   "rest": 0,
+   "joints": {
+    "end": [
+     88.0,
+     26.0
+    ],
+    "grip": [
+     88.0,
+     26.0
+    ]
+   }
+  }
+ },
+ "order": [
+  "cape",
+  "tail3",
+  "tail2",
+  "tail1",
+  "foreArmF",
+  "upperArmF",
+  "shinF",
+  "thighF",
+  "shinN",
+  "thighN",
+  "hips",
+  "torso",
+  "head",
+  "weapon",
+  "upperArm",
+  "foreArm"
+ ],
+ "ground": [
+  260.0,
+  704.0
+ ],
+ "height": 614.0
+}

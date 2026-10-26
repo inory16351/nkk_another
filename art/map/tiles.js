@@ -1,0 +1,1 @@
+window.TILES = {"grass": {"img": "tiles/grass.png", "w": 452, "h": 269}, "dirt": {"img": "tiles/dirt.png", "w": 452, "h": 269}, "stone": {"img": "tiles/stone.png", "w": 452, "h": 268}, "crate": {"img": "tiles/crate.png", "w": 280, "h": 394}, "wall": {"img": "tiles/wall.png", "w": 347, "h": 410}, "bush": {"img": "tiles/bush.png", "w": 329, "h": 313}};

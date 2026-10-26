@@ -1,0 +1,41 @@
+{
+ "scale": 0.5,
+ "views": {
+  "side": {
+   "src": "full_side.png",
+   "ground": [530, 1435],
+   "cap": 24,
+   "bones": {
+    "hips":     {"parent": null,       "a": [535, 1010], "b": [535, 1110]},
+    "torso":    {"parent": "hips",     "a": [535, 985],  "b": [540, 760], "bias": 40},
+    "head":     {"parent": "torso",    "a": [530, 728],  "b": [520, 430], "cap": 40},
+    "cape":     {"parent": "torso",    "a": [470, 760],  "b": [380, 1150]},
+    "upperArm": {"parent": "torso",    "a": [565, 850],  "b": [680, 885]},
+    "foreArm":  {"parent": "upperArm", "a": [680, 885],  "b": [815, 862]},
+    "weapon":    {"parent": "foreArm",  "a": [828, 858],  "b": [832, 90], "keep": true, "cap": 0},
+    "thighN":   {"parent": "hips",     "a": [465, 1110], "b": [458, 1200]},
+    "shinN":    {"parent": "thighN",   "a": [458, 1200], "b": [455, 1385]},
+    "thighF":   {"parent": "hips",     "a": [590, 1110], "b": [598, 1200]},
+    "shinF":    {"parent": "thighF",   "a": [598, 1200], "b": [610, 1360]},
+    "tail1":    {"parent": "hips",     "a": [440, 1200], "b": [300, 1215]},
+    "tail2":    {"parent": "tail1",    "a": [300, 1215], "b": [170, 1130], "cap": 14},
+    "tail3":    {"parent": "tail2",    "a": [170, 1130], "b": [45, 1080], "cap": 12}
+   },
+   "clones": {
+    "upperArmF": {"from": "upperArm", "parent": "torso", "pivot": [528, 838], "dark": 0.68},
+    "foreArmF":  {"from": "foreArm", "parent": "upperArmF", "dark": 0.68}
+   },
+   "rules": [
+    {"to": "foreArm", "poly": [[762, 800], [880, 800], [880, 918], [762, 918]], "color": "pink"},
+    {"to": "weapon", "grow": 8, "color": "sword", "poly": [[712, 232], [835, 66], [954, 232], [898, 690], [966, 700], [966, 782], [870, 782], [870, 1010], [784, 1010], [784, 918], [800, 918], [800, 782], [692, 782], [692, 700], [770, 690]]},
+    {"to": "head", "poly": [[55, 55], [705, 55], [705, 690], [640, 738], [560, 738], [470, 714], [360, 692], [55, 600]]},
+    {"to": "cape", "color": "red", "y": [690, 1200]},
+    {"to": ["tail1", "tail2", "tail3"], "poly": [[30, 1050], [448, 1050], [448, 1250], [30, 1250]], "color": "pink"},
+    {"to": "hips", "poly": [[420, 985], [660, 985], [660, 1122], [420, 1122]]},
+    {"to": "shinN", "poly": [[395, 1370], [530, 1385], [590, 1425], [590, 1465], [395, 1465]]}
+   ],
+   "default": ["torso", "upperArm", "foreArm", "thighN", "shinN", "thighF", "shinF"],
+   "order": ["cape", "tail3", "tail2", "tail1", "foreArmF", "upperArmF", "shinF", "thighF", "shinN", "thighN", "hips", "torso", "head", "weapon", "upperArm", "foreArm"]
+  }
+ }
+}

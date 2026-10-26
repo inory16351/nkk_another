@@ -1,0 +1,7 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: stage4.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x864 landscape (16:9), full-bleed scenery, no characters, no text, no frame, no UI.
+- A BATTLE STAGE background for a side-view RPG with EXACTLY the same camera and composition as the first attached image: the flat walkable GROUND occupies the whole LOWER 62% of the image as one wide open, gently receding field with NO objects on it (5 rows of small characters will stand there from the left edge to the right edge); the scenery is only in the UPPER 38%.
+- SCENE: A misty DEEP FOREST CLEARING at blue twilight: tall dark pine and oak trees along the far edge, mushrooms, fireflies as tiny flat dots, soft fog. Ground: mossy grass and fallen leaves, slightly darker and cooler colors.
+- STYLE: EXACTLY the same clean FLAT 2D cartoon illustration style as the attached images (flat colors, one soft shadow tone and one highlight tone, hard edges, no black outlines, no gradients, no texture noise). Cozy ARTHURIAN medieval fantasy world of a mouse kingdom (Camelot-like). No text, no characters.

@@ -1,0 +1,13 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: death.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x1024, solid flat MAGENTA background (#FF00FF) everywhere behind the drawings: no floor, no ground shadow, no vignette, no glow, no text, no numbers, no grid lines, no frames.
+- An exact grid of 2 columns x 2 rows (each cell 768x512). One drawing per cell, with a clear magenta margin; drawings must NOT touch or cross cell borders. In every cell the character rests on the SAME invisible ground line about 40 px above the bottom of the cell.
+- A 4-frame cartoon KNOCK-OUT (defeat) animation, exaggerated, punchy, readable key poses, PURE SIDE VIEW, the character FACES RIGHT (toward the enemy) in every frame and is knocked BACKWARD to the LEFT. Draw EXACTLY the same character as the attached image (same design, colors, proportions, flat art style); every frame at the same scale as the attached image (the standing character would be about 460 px tall).
+- Character: the chibi bipedal KNIGHT MOUSE: silver barred helmet with a tall red feather plume, big pink round ears, grey-brown fur, silver plate armor, brown belt with gold buckle, short red cape, long pink tail, huge white greatsword with blue diamond runes and a gold crossguard.
+- RENDERING: the same clean flat 2D illustration as the attached image: flat colors with one soft shadow tone and one highlight tone, no black outlines, no gradients, no texture noise, no motion lines, no effects, no blood (cute, family friendly).
+Frames, left to right, top to bottom:
+1. HIT: a heavy blow, the whole body recoils backward, head thrown back, eyes squeezed shut, the plume and cape flung forward, the greatsword slipping from the hand, feet still on the ground.
+2. FLY: knocked off his feet, flying backward through the air in a backward arc, body tilted back almost horizontal, limbs flailing, helmet knocked crooked, the sword spinning away above.
+3. BOUNCE: crashing down on his back, bouncing slightly off the ground, legs up in the air, the helmet visor popped open.
+4. DOWN: lying flat on his back on the ground with his head on the LEFT and his feet toward the RIGHT, dizzy swirly spiral eyes, tongue sticking out a little, the helmet fallen beside his head, the greatsword lying flat on the ground beside him, tail limp.

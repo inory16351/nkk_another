@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>쥐들의 전쟁 — 전투 데모</title>
+<style>
+  :root { --ink: #ece4cc; --dim: #a59c84; --panel: rgba(34, 30, 24, 0.86); --line: rgba(236, 228, 204, 0.16); --rat: #8fd0ff; --cat: #ff6b5b; --gold: #ffcf4a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #2a251e; color: var(--ink); font-family: "Noto Sans KR", "Malgun Gothic", sans-serif; overflow: hidden; user-select: none; }
+  #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+  #top { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; background: var(--panel); padding: 7px 16px; border-radius: 6px; border: 1px solid var(--line); font-size: 14px; }
+  #turn.rat { color: var(--rat); } #turn.cat { color: var(--cat); }
+  #shells { color: var(--dim); }
+  #log { position: fixed; top: 12px; right: 12px; width: 300px; font-size: 13px; pointer-events: none; }
+  #log .l { background: var(--panel); padding: 4px 9px; margin-bottom: 3px; border-radius: 4px; border-left: 3px solid var(--line); }
+  #log .good { border-left-color: var(--rat); } #log .bad { border-left-color: var(--cat); } #log .warn { border-left-color: var(--gold); } #log .title { border-left-color: var(--gold); color: var(--gold); }
+  #bar { position: fixed; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 10px; align-items: flex-end; }
+  #squad { display: flex; gap: 6px; }
+  .card { width: 132px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+  .card.sel { border-color: var(--rat); box-shadow: 0 0 0 1px var(--rat) inset; }
+  .card.dead { opacity: 0.45; text-decoration: line-through; }
+  .card .nm { font-weight: 700; font-size: 13px; } .card .cl { color: var(--dim); font-size: 11px; }
+  .card .hp { display: flex; gap: 2px; margin: 4px 0; } .card .hp i { width: 10px; height: 6px; background: rgba(0,0,0,0.45); } .card .hp i.on { background: var(--rat); }
+  .card .st { font-size: 11px; color: var(--dim); }
+  #abil { display: flex; gap: 5px; flex: 1; flex-wrap: wrap; justify-content: center; }
+  .ab { position: relative; min-width: 76px; padding: 7px 8px 6px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ab:hover { border-color: var(--ink); } .ab.on { border-color: var(--gold); color: var(--gold); }
+  .ab.off { opacity: 0.38; cursor: default; }
+  .ab .ic { font-size: 17px; } .ab .hk { position: absolute; top: 2px; left: 5px; font-size: 10px; color: var(--dim); }
+  #endturn { padding: 12px 18px; background: #5a4a2e; color: var(--ink); border: 1px solid var(--gold); border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+  #endturn:disabled { opacity: 0.4; cursor: default; }
+  #tip { position: fixed; left: 12px; top: 60px; width: 230px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; font-size: 12px; display: none; }
+  .tip-h { display: flex; justify-content: space-between; } .tip-h span { color: var(--dim); }
+  .tip-big { font-size: 26px; font-weight: 800; margin: 4px 0; } .tip-big small { font-size: 11px; color: var(--dim); margin: 0 10px 0 3px; font-weight: 400; }
+  .tip-r { display: flex; justify-content: space-between; color: var(--dim); } .pos { color: var(--rat); } .neg { color: var(--cat); } .warn { color: var(--gold); }
+  .tip-k { margin-top: 6px; color: var(--dim); font-size: 11px; }
+  #banner { position: fixed; top: 36%; left: 0; right: 0; text-align: center; font-size: 34px; font-weight: 800; letter-spacing: 2px; opacity: 0; transition: opacity 0.25s; pointer-events: none; text-shadow: 0 2px 0 #1b1712; }
+  #banner.show { opacity: 1; } #banner.rat { color: var(--rat); } #banner.cat { color: var(--cat); }
+  #help { position: fixed; left: 12px; top: 12px; font-size: 11px; color: var(--dim); background: var(--panel); padding: 5px 9px; border-radius: 4px; }
+  #title, #end { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(26, 22, 17, 0.82); }
+  #end { display: none; }
+  .panel { width: min(560px, calc(100vw - 32px)); background: #2e2820; border: 1px solid var(--line); border-radius: 8px; padding: 22px 26px; }
+  .panel h1 { margin: 0 0 6px; font-size: 30px; } .panel h3 { margin: 16px 0 6px; font-size: 14px; color: var(--dim); }
+  .panel p { color: var(--dim); line-height: 1.6; }
+  .rep { padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; } .rep.dead { color: var(--cat); } .rep b { color: var(--gold); }
+  .fallen { color: var(--dim); font-size: 13px; }
+  .btns { display: flex; gap: 8px; margin-top: 18px; }
+  .btns button, #go { padding: 10px 16px; background: #5a4a2e; color: var(--ink); border: 1px solid var(--gold); border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+  .villain { display: flex; gap: 16px; align-items: center; }
+  .villain img { width: 110px; height: auto; }
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--dim); }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="top"><span id="turn"></span><span id="shells"></span></div>
+<div id="help">WASD 카메라 · Q/E 회전 · 휠 확대 · 우클릭 끌기/취소 · Tab 다음 병사 · 1~6 능력 · Enter 턴 종료</div>
+<div id="log"></div>
+<div id="tip"></div>
+<div id="banner"></div>
+<div id="bar"><div id="squad"></div><div id="abil"></div><button id="endturn">턴 종료 ⏎</button></div>
+<div id="end"></div>
+<div id="title">
+  <div class="panel">
+    <div class="villain"><img id="fuhrer" alt=""><div>
+      <h1>쥐들의 전쟁</h1>
+      <p>총통 고양이의 군대가 마을을 집어삼켰다.<br>언덕 위 버려진 <b>박격포 진지</b>를 먼저 차지하고, 고양이 분대를 몰아내라.</p>
+    </div></div>
+    <p>엄폐물 옆에 서면 방패가 뜬다(반쪽 = 낮은 엄폐). 측면을 잡으면 치명타가 오른다. 언덕 위는 명중 +20.<br>죽은 쥐는 돌아오지 않는다. 살아남은 쥐는 진급한다.</p>
+    <button id="go">출격</button>
+  </div>
+</div>
+<div id="loading">불러오는 중…</div>
+<script src="../art/rat/rig.js"></script>
+<script src="../art/cat/rig.js"></script>
+<script src="../art/out/assets.js"></script>
+<script src="data.js"></script>
+<script src="world.js"></script>
+<script src="rig.js"></script>
+<script src="game.js"></script>
+<script src="view.js"></script>
+<script src="ui.js"></script>
+<script>
+  (async () => {
+    await View.load();
+    document.getElementById('loading').remove();
+    document.getElementById('fuhrer').src = View.IM.boss_fuhrer.src;
+    startBattle();
+    View.start();
+    const go = () => { document.getElementById('title').style.display = 'none'; selectNext(); View.banner('아군 차례 · 1턴', 'rat'); };
+    document.getElementById('go').onclick = go;
+    document.getElementById('endturn').onclick = () => endRatTurn();
+    if (new URLSearchParams(location.search).has('go')) go();
+  })().catch((e) => { document.getElementById('loading').textContent = '오류: ' + e.message; console.error(e); });
+</script>
+</body>
+</html>

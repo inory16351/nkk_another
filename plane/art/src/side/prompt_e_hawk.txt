@@ -1,0 +1,9 @@
+Use your built-in image generation tool to create ONE image and save it as PNG to: e_hawk.png (in the current working directory). Do not write code to draw it; it must be a generated illustration. After saving, reply only with the file name. Do NOT edit, clean or post-process the image with code or scripts: save the generated image as-is.
+
+Image spec:
+- 1536x768 landscape SPRITE SHEET: 2 cells side by side (left half = frame 1, right half = frame 2), the same bird at the same size and same body position in both cells, each fully inside its own half, wide magenta space between them.
+- SUBJECT: a fierce BIRD OF PREY, a brown HAWK with a cream speckled chest, yellow hooked beak and yellow talons, flying.
+- Frame 1: wings raised UP high. Frame 2: wings pushed DOWN low. Body, head and tail identical in both.
+- VIEW: pure SIDE VIEW (profile), the hawk flies to the RIGHT (beak points RIGHT), body horizontal.
+- solid flat MAGENTA background (#FF00FF) everywhere behind the subject: no ground, no shadow, no clouds, no vignette, no frame. The subject itself must not contain magenta or purple-pink; small soft-pink mouse ears, nose, feet and tail are fine.
+- ART STYLE (most important): EXACTLY the art style of the attached reference images (cut-out body parts of characters from our mobile game): soft flat 2D vector illustration, muted natural colors, simple rounded shapes, flat fills with only one subtle soft shadow tone, very fine subtle paper-like texture at most, NO black outlines, NO line art, NO glow, NO gradients, NO anime style, NO motion lines, NO speed effects, NO text, NO letters, NO logos. Animals look fairly natural (realistic proportions, side profile), not chibi.
