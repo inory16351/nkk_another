@@ -3,16 +3,32 @@
 import os, sys
 from PIL import Image
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-for rel in sys.stdin.read().split():
-    src = os.path.normpath(os.path.join(ROOT, 'web', rel))
+for item in sys.stdin.read().split():
+    candidates = [
+        os.path.normpath(item),
+        os.path.normpath(os.path.join(ROOT, item)),
+        os.path.normpath(os.path.join(ROOT, 'web', item)),
+        os.path.normpath(os.path.join(ROOT, 'web', 'chess', item))
+    ]
+    src = None
+    for c in candidates:
+        if os.path.isfile(c):
+            src = c
+            break
+    if not src:
+        continue
     dst = os.path.join(ROOT, 'build', 'cache', os.path.relpath(src, ROOT)) + '.webp'
     if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
         continue
     os.makedirs(os.path.dirname(dst), exist_ok=True)
-    im = Image.open(src)
-    if '/parts2/' in rel or '/death/' in rel:
-        im = im.resize((max(1, im.width // 2), max(1, im.height // 2)), Image.LANCZOS)
-    elif im.width > 1600:
-        im = im.resize((1600, round(im.height * 1600 / im.width)), Image.LANCZOS)
-    im.save(dst, 'WEBP', quality=86, method=5)
+    try:
+        im = Image.open(src)
+        nsrc = src.replace('\\', '/')
+        if '/parts2/' in nsrc or '/parts3/' in nsrc or '/death/' in nsrc:
+            im = im.resize((max(1, im.width // 2), max(1, im.height // 2)), Image.LANCZOS)
+        elif im.width > 1600:
+            im = im.resize((1600, round(im.height * 1600 / im.width)), Image.LANCZOS)
+        im.save(dst, 'WEBP', quality=86, method=5)
+    except Exception as e:
+        print(f"Error packing {src}: {e}", file=sys.stderr)
 print('ok')

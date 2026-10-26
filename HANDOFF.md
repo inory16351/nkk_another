@@ -28,6 +28,8 @@
 node tools/serve.js          # http://localhost:5320/web/game.html (게임) · /web/index.html (리그 뷰어)
 node tools/build_single.js   # → build/기사쥐_외전.html (단일, 그림 webp 내장 ~4MB)
 node tools/build_single.js web/index.html build/기사쥐_리그뷰어.html
+node tools/build_single.js web/chess/index.html build/기사쥐_체스.html # → build/기사쥐_체스.html (단일, 판 위 전투 체스 ~3.1MB)
+
 ```
 - Python 은 이 PC 에 없음 → `C:/Project/underworld-proto/.venv/Scripts/python.exe -I` 사용 (numpy · Pillow · scipy · cv2).
 - 게임 확인용: 콘솔 `__game.startBattle(0~4)`, `__game.battle`, `__game.goBase()`. 저장 = localStorage `nkk_another_save_v1`.
@@ -56,10 +58,45 @@ node tools/build_single.js web/index.html build/기사쥐_리그뷰어.html
 2. 프롬프트 입력 · 전송 → 끝나면(`[data-testid=stop-button]` 없음) 페이지 함수 `__prep('이름.png')` 가 왼쪽 위에 빨간 "받기" 링크를 만듦 → **그 링크를 클릭**(스크립트 클릭은 다운로드 안 됨).
 3. 받은 파일은 `~/Downloads/<uuid>.tmp` → `bash tools/grab_latest.sh <크기> <대상 경로>` 로 옮김 (`__prep` 반환값 = 크기).
 - 페이지를 새로 열면 `__refs · __attach · __prep · __last · __seen` 을 다시 정의해야 함 (대화 기록 참고).
+- (2026-10-26 체스 작업 때 확인) chatgpt.com 은 CSP 때문에 localhost 그림을 fetch · img 로 못 읽음 → 참고 그림은 **작은 JPEG(720px · q62, ~18KB) base64** 를 `atob` 로 Blob 만들어 `__refs` 에 넣음. 생성된 그림은 `img[alt^="생성된 이미지"]`(blob: 주소) 를 fetch → `<a download>` 링크 → 클릭.
+- 같은 대화에서 이어서 요청하면 그림체 · 각도가 맞춰짐 (체스: 쥐 시트 → 고양이 시트 → 판 → 성벽 → 배경 순서로 한 대화).
 - 이번에 받은 것: 사냥꾼 · 고양이 척후 · 흑묘 기사의 통그림 · 부위 시트 · 쓰러짐 시트(원본은 각 `_gpt/`, 옛 외곽선판은 `_old_outline/`), UI 키트.
 - Codex 프롬프트들은 각 폴더 `prompt_*.txt` 에 남아 있음 (ChatGPT 에도 그대로 쓸 수 있음).
 
-## 6. 진행 중 — 이펙트 고도화 (사용자: "이펙트만 좀 더 깎아서, 성검 해방 이런 거")
+## ★ 방향 전환 (2026-10-26) — 체스 로그라이크 덱빌딩 & 체스말 피규어 판 위 전투
+사용자: "전투 느낌은 ㄱㅊ은데 이거 로그라이크로 구성해주고, 말이 완전 이렇게 쥐처럼 하지 말고 체스말을 쥐나 고양이로 변형한 느낌에서 전투가 일어나게 해줘. 처음엔 기본 병사들만 8명 들고 시작해서 게임 끝나면 말을 강화하거나 새로운 말들을 추가해서 내 덱을 강화하는 컨셉 이번 판에 잃은 말들은 다음판에 들고갈 수 없음."
+- **체스말 피규어 전면 배치 (`art/chess/fig/*.png`)**:
+  - 인간형 스켈레탈 리그 대신, 체스말 모양 베이스에 쥐/고양이 특색이 조각된 전용 피규어 12종을 판 위에 직접 렌더링.
+  - 호흡 숨쉬기, 틸트, 점프 아크, 돌진 공격, 타격 스파크(`k_sparks`), 검기 궤적(`k_arc`), 화염구 폭발, 피격 플래시, 3D 데미지 숫자 팝업, 사망 소멸 연기.
+- **로그라이크 덱빌딩 & 영구 결손(Permadeath)**:
+  - 시작 시 들쥐 병사(폰) 8명으로 런 시작.
+  - 전투 도중 쓰러진 기물은 **영구 덱에서 완전히 제외**되어 다음 판에 데려갈 수 없음.
+  - 스테이지 클리어 시 3택 보상:
+    1. **새로운 말 영입**: 나이트, 비숍, 룩, 퀸 중 1기 추가.
+    2. **기물 강화**: 내 기물 1기 선택하여 공격력 +1, 최대체력 +1, ★ 성급 상승 및 완전 회복.
+    3. **정비 및 충원**: 전원 체력 완전 치료 + 예비 폰 1기 보충.
+- **특수 능력 & 액티브 스킬**:
+  - 기사 쥐: 성검 해방(전방 2칸 관통 참격) / 처치 시 보너스 추가 행동.
+  - 마법사 쥐: 화염구(목표 및 십자 주변 폭발) / 대각선 2칸 원거리 사격.
+  - 바이킹 쥐: 성벽 돌진(직선 돌진 + 1칸 밀침) / 최초 피격 무효 방패벽.
+  - 쥐 여왕: 왕실 칙령(적 1턴 결박 기절) / 공격 후 재배치.
+  - 쥐 왕: 왕의 호령(전체 아군 공격력 +1 버프) / 인접 아군 피해 -1.
+  - 들쥐 병사: 돌격 찌르기(제자리 전방 찌르기) / 끝 줄 도달 시 여왕 승급.
+- **5개 층수 스테이지 & 보스전**: 1층 척후조부터 5층 독재 고양이 킹 보스전까지 점진적 난이도.
+- **실행**: `node tools/serve.js 5323` → http://localhost:5323/web/chess/index.html
+- **단일 HTML**: `node tools/build_single.js web/chess/index.html build/기사쥐_체스.html` (3.14MB, 더블클릭 실행 가능) — ※ 아래 증강 · 팔 · 몸 · 받침 그림은 build_single EXTRA 에 아직 안 넣음 (다시 빌드하려면 추가 필요)
+
+### 2026-10-26 밤 수정 · 추가 (사용자: "먼가 이상함" → 고침, "일정 스테이지마다 증강", "기물마다 고유 액션 리깅으로")
+- 고친 것: 판 원근 텍스처 오타(`texQuad` dy 의 c[0]→c[1], 칸이 삼각형으로 깨졌음) · 카메라 맞춤(매 프레임 기준값부터, 옆면까지) · 그림에 이미 받침이 있는데 코드 타원 받침을 또 그리던 것 삭제 · 고양이 좌우 뒤집힘(그림 원래 방향 기준) · 여왕 결박이 걸리자마자 풀리던 것 · 호령 등 판 안 버프가 덱 공격력에 영구 저장되던 것 · 차례 표시가 위 스테이지 바와 겹치던 것(바 안 `#st-turn` 으로) · 안 쓰는 리그 스크립트 로드 삭제 · 체력 표시 = 하트 그림.
+- **증강**: 2 · 4층 클리어 → 보상 다음에 3개 중 1개 (`AUGS`, `AUG_STAGES`). 치즈 갑옷 · 날카로운 앞니 · 선제 돌격 · 쥐구멍 증원(임시 폰 2) · 기사의 명예 · 전쟁 북 · 성배 · 가시 갑옷 · 고양이 덫. 아이콘 `art/chess/aug/<id>.png`, 스테이지 바 아래 `#aug-bar`.
+- **전투 액션** (캣 체스 느낌, `onBoardCombat` 안 `MOVES[art]`): 공격자는 칸을 벗어나 상대 옆에 서고 카메라가 1.9배 당겨짐. 팔 리그 = `art/chess/arm/<id>.png`(어깨 = 왼쪽 끝 · 세로 가운데로 맞춤, `drawArm`). 들쥐 원투+어퍼컷 · 기사 L자 도약 내려베기 · 마법사 지팡이 모아 화염구 · 바이킹 방패 돌진 밀치기 · 여왕 받침에서 떠올라 홀 3연타 · 왕 점프 망치 · 식빵 냥냥펀치 4연타 · 닌자 연기 순간이동 등 뒤 베기 · 불 고양이 화염탄 3연발 · 뚱냥 성탑에서 튀어나와 배치기 · 마녀 지팡이 돌려 저주 구슬 · 독재 킹 "돌격!" 지휘봉. 잡으면 피니시 = 쥐는 치즈 바퀴 낙하(납작), 고양이는 상자 씌우기.
+- 튀어나오기(여왕 · 뚱냥) = 받침은 칸에 남고(`art/chess/base/<art>.png`) 몸(`art/chess/body/<art>.png`, 앞팔 없이 그려서 팔 리그를 `SHOULDER` 자리에 붙임)만 움직임 (`p.popped`). 다른 기물도 몸 · 받침 그림은 다 있음.
+- 그림은 전부 ChatGPT 한 대화에서 (원본 `art/chess/gpt/*`), 자르기 `tools/cut_pieces.py <시트> <폴더> <이름들> [열] [행]` (칸 안 큰 덩어리만).
+- ChatGPT 받기 주의: 같은 페이지에서 여러 번 받으면 브라우저가 다운로드를 막음 → **페이지 새로고침 후 `__prep` 다시 정의하고 클릭**하면 됨.
+- 자동 확인: 콘솔에서 덱 세게 만들고 `__auto(ms)`(대화 기록) 로 1~5층 승리까지 오류 0 확인.
+
+
+## 6. (멈춤) 이펙트 고도화 (사용자: "이펙트만 좀 더 깎아서, 성검 해방 이런 거")
 이미 한 것: NKK 기사 초필살기 이펙트 33장을 `art/fx/k/` 로 복사 (arc · band · beam · blast · boom1~3 · burst · charge · column · cutline · dots · flamewall · flash · frame · ghostsword · hit1~3 · lightring · mote(s) · pillar · ring · ripple · shards · slash · slashwave · smear · sparks · streak · wave) + `art/fx/` 에 dot · puff · shard_a~c · crumbs · smoke · flame · bolt_b. **코드는 아직 안 고침.**
 
 계획 (`web/game/fx.js` 새로 만들고 `battle.js` 의 `fxAt/drawFx/drawTrails/projectile/attack/aoe/heal/buff/chain` 을 거기로):

@@ -11,6 +11,15 @@
       "port": 5320
     },
     {
+      "name": "chess-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "5323"
+      ],
+      "port": 5323
+    },
+    {
       "name": "plane-demo",
       "runtimeExecutable": "node",
       "runtimeArgs": [

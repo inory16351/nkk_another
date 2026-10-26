@@ -19,23 +19,41 @@ const scripts = [];
 html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => { scripts.push(src); return m; });
 for (const src of scripts) {
   const code = read(path.join(WEB, src));
-  for (const m of code.matchAll(/\.\.\/art\/[\w/.-]+\.png/g)) add(m[0]);
+  for (const m of code.matchAll(/(?:\.\.\/)+art\/[\w/.-]+\.png/g)) add(m[0]);
   // art/<id>/rig.js · anims.js → 부위 · 컷 그림
-  const id = (src.match(/\.\.\/art\/([^/]+)\/(rig|anims)\.js$/) || [])[1];
-  if (id && src.endsWith('rig.js')) { const rig = JSON.parse(read(path.join(ROOT, 'art', id, 'rig.json'))); for (const p of Object.values(rig.parts || {})) add(`../art/${id}/${p.img}`); }
-  if (id && src.endsWith('anims.js')) { const A = JSON.parse(read(path.join(ROOT, 'art', id, 'anims.json'))); for (const a of Object.values(A)) for (const f of a.frames) add(`../art/${id}/${f.img}`); }
+  const m = src.match(/(?:\.\.\/)+art\/([^/]+)\/(rig|anims)\.js$/);
+  const id = m ? m[1] : null;
+  const prefix = src.startsWith('../../') ? '../../' : '../';
+  if (id && src.endsWith('rig.js')) { const rig = JSON.parse(read(path.join(ROOT, 'art', id, 'rig.json'))); for (const p of Object.values(rig.parts || {})) add(`${prefix}art/${id}/${p.img}`); }
+  if (id && src.endsWith('anims.js')) { const A = JSON.parse(read(path.join(ROOT, 'art', id, 'anims.json'))); for (const a of Object.values(A)) for (const f of a.frames) add(`${prefix}art/${id}/${f.img}`); }
 }
-// main.js 가 반복문으로 경로를 만드는 그림
+// 동적 생성 이미지들
 const EXTRA = [];
-for (let i = 1; i <= 5; i++) EXTRA.push(`../art/stages/stage${i}.png`);
-for (let i = 0; i < 6; i++) EXTRA.push(`../art/base/b/${i}.png`);
-for (const n of ['arrow', 'fireball', 'ring', 'heart', 'slash', 'star', 'bolt_a']) EXTRA.push(`../art/fx/${n}.png`);
-for (const k of ['hit', 'explosion', 'zap', 'poof']) for (let i = 1; i <= 6; i++) EXTRA.push(`../art/fx/${k}_${i}.png`);
+const pfx = PAGE.includes('chess') ? '../../' : '../';
+if (PAGE.includes('chess')) {
+  for (const n of ['cat_bishop', 'cat_king', 'cat_knight', 'cat_pawn', 'cat_queen', 'cat_rook', 'fieldmouse', 'knight', 'ratking', 'ratqueen', 'viking', 'wizard']) {
+    EXTRA.push(`${pfx}art/chess/fig/${n}.png`);
+  }
+  for (const n of ['board', 'wall', 'bg']) EXTRA.push(`${pfx}art/chess/${n}.png`);
+  for (const n of ['hit1', 'hit2', 'hit3', 'sparks', 'arc', 'slash', 'burst', 'charge', 'wave', 'beam', 'ripple', 'lightring']) {
+    EXTRA.push(`${pfx}art/fx/k/fx_${n}.png`);
+  }
+  for (const n of ['fireball', 'flame', 'bolt_b', 'puff', 'smoke', 'crumbs', 'heart']) {
+    EXTRA.push(`${pfx}art/fx/${n}.png`);
+  }
+  for (const k of ['explosion', 'poof']) for (let i = 1; i <= 6; i++) EXTRA.push(`${pfx}art/fx/${k}_${i}.png`);
+  EXTRA.push(`${pfx}art/stages/stage1.png`);
+} else {
+  for (let i = 1; i <= 5; i++) EXTRA.push(`../art/stages/stage${i}.png`);
+  for (let i = 0; i < 6; i++) EXTRA.push(`../art/base/b/${i}.png`);
+  for (const n of ['arrow', 'fireball', 'ring', 'heart', 'slash', 'star', 'bolt_a']) EXTRA.push(`../art/fx/${n}.png`);
+  for (const k of ['hit', 'explosion', 'zap', 'poof']) for (let i = 1; i <= 6; i++) EXTRA.push(`../art/fx/${k}_${i}.png`);
+  for (const n of ['ic_cheese', 'ic_scrap', 'ic_medal']) EXTRA.push(`../art/ui/${n}.png`);
+}
 EXTRA.forEach(add);
 
-for (const m of html.matchAll(/src="(\.\.\/art\/[^"]+\.png)"/g)) add(m[1]);
-for (const m of html.matchAll(/url\('(\.\.\/art\/[^']+\.png)'\)/g)) add(m[1]);
-for (const n of ['ic_cheese', 'ic_scrap', 'ic_medal']) add(`../art/ui/${n}.png`);
+for (const m of html.matchAll(/src="((?:\.\.\/)+art\/[^"]+\.png)"/g)) add(m[1]);
+for (const m of html.matchAll(/url\('((?:\.\.\/)+art\/[^']+\.png)'\)/g)) add(m[1]);
 // 줄인 webp 로 (tools/pack_images.py)
 const PY = process.env.PY || 'C:/Project/underworld-proto/.venv/Scripts/python.exe';
 require('child_process').execFileSync(PY, ['-I', path.join(__dirname, 'pack_images.py')], { input: [...want].join(' ') });
