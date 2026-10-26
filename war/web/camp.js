@@ -251,8 +251,12 @@ const Camp = (() => {
       if (r.rested >= 2) r.afflicted = null;
     }
     c.deploy = c.deploy.filter((id) => c.squad.some((r) => r.id === id));
+    // 출전할 쥐가 4마리도 안 남으면 징집병이 공짜로 옴 (전멸해도 캠페인은 이어짐)
+    let drafted = 0;
+    while (c.squad.filter(ready).length < 4 && c.squad.length < SQUAD_MAX) { const r = newRat(c); r.drafted = true; c.squad.push(r); drafted++; }
+    for (const r of c.squad) if (c.deploy.length < DEPLOY_MAX && ready(r) && !c.deploy.includes(r.id) && r.drafted) c.deploy.push(r.id);
     save(c);
-    return { reward, report };
+    return { reward, report, drafted };
   }
 
   // 지금 열린 임무 (깬 것 + 다음 하나)

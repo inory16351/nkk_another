@@ -926,10 +926,13 @@ const View = (() => {
   function muzzlePoint(u) {
     const { x, y, s } = foot(u);
     const v = viewOf(u);
-    if (v.view === 'side') return { x: x + (v.flip ? -1 : 1) * UNIT_H * 0.55 * s, y: y - UNIT_H * 0.55 * s };
-    return { x: x + (v.view === 'front' ? 8 : -8) * s, y: y - UNIT_H * (v.view === 'front' ? 0.5 : 0.75) * s };
+    const k = bodyK(u);
+    if (v.view === 'side') return { x: x + (v.flip ? -1 : 1) * UNIT_H * 0.55 * s, y: y - UNIT_H * 0.55 * k * s };
+    return { x: x + (v.view === 'front' ? 8 : -8) * s, y: y - UNIT_H * (v.view === 'front' ? 0.5 : 0.75) * k * s };
   }
-  const chest = (u) => { const p = foot(u); return { x: p.x, y: p.y - UNIT_H * 0.55 * p.s, s: p.s }; };
+  // 몸 높이 배율: 웅크리면 낮아지고, 쓰러지면 바닥
+  const bodyK = (u) => (u.st.death != null || (!u.alive && !u.downed) || u.downed ? 0.12 : 1 - 0.42 * Math.min(1, u.st.crouch || 0));
+  const chest = (u) => { const p = foot(u); return { x: p.x, y: p.y - UNIT_H * 0.55 * bodyK(u) * p.s, s: p.s }; };
 
   const KICK = { sniper: 9, shotgun: 8, hmg: 5, lmg: 3.5, rifle: 4, smg: 2.5 };
   function muzzle(a, b, hit, o = {}) {
@@ -961,18 +964,15 @@ const View = (() => {
     await realSleep(380);
   }
   // 느린 총알: 총구 → 가슴. 닿는 순간 번쩍 + 히트스톱
-  async function bulletTime(b, crit) {
+  // 치명 · 마무리 한 발이 맞는 순간: 따로 총알을 날리지 않고 맞은 자리에서 번쩍 + 큰 타격 효과 + 히트스톱 → 슬로 유지
+  async function bulletTime(a, b, crit) {
     const c = chest(b);
-    const a = G.units.find((u) => u.aiming) || null;
-    const m = a ? muzzlePoint(a) : { x: c.x - 200, y: c.y };
-    const bl = { type: 'bullet', x: m.x, y: m.y, x0: m.x, y0: m.y, life: 99, t: 0, crit };
-    fx.push(bl);
-    await tween(240, (k) => { bl.x = m.x + (c.x - m.x) * k; bl.y = m.y + (c.y - m.y) * k; });
-    fx.splice(fx.indexOf(bl), 1);
     cine.flash = crit ? 1 : 0.6;
     shake = crit ? 22 : 14;
+    fx.push({ type: 'hitspark', x: c.x, y: c.y, life: 0.5, t: 0, s: (c.s || 1) * (crit ? 2.4 : 1.7) });
+    if (crit) fx.push({ type: 'ring', x: c.x, y: c.y, r: 90 * c.s, life: 0.5, t: 0, col: '255,207,74' });
     const keep = G.ts; G.ts = 0.03;
-    await realSleep(crit ? 120 : 80);
+    await realSleep(crit ? 140 : 90);
     G.ts = keep;
   }
   function endCinematic() {

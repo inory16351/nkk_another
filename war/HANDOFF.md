@@ -1,91 +1,76 @@
-# 쥐들의 전쟁 (가제) — 핸드오프 (2026-10-26)
+# 쥐들의 전쟁 (가제) — 핸드오프 (2026-10-27)
 
-NKK(찍!찍!!찍!!!) IP 확장 · 2차대전 오마쥬 엑스컴식 턴제 전술. 기사 쥐(`web/` · 5320) · 비행기(`plane/` · 5321)와 **별개 게임**, `war/` 폴더만 쓴다. 기획 메모: `../전쟁 시뮬레이션 게임.md`.
+NKK(찍!찍!!찍!!!) IP 확장 · 2차대전 오마쥬 엑스컴식 턴제 전술 + 다키스트 던전식 스트레스 + 림월드식 특성.
+기사 쥐 체스(`web/`) · 비행기(`plane/`)와 **별개 게임**, `war/` 폴더만 씀 (그림 · 소리 · 도구 전부 `war/` 안). 기획 메모: `../전쟁 시뮬레이션 게임.md`.
+브랜치는 나누지 않고 **main 에서만** 작업 (사용자 지시). 웹 빌드로 검토 → 유니티는 게임마다 **별도 저장소**로 옮길 예정.
 
 ## 실행
 ```bash
-node war/tools/serve.js
+node war/tools/serve.js          # http://localhost:5322/web/index.html  (?hq=1 사령부 바로, ?go=1 전투 바로)
+node war/tools/build_single.js   # → war/build/war.html (단일 파일 ~8MB: 스크립트 · 그림(webp) · 배경음 내장, 글꼴만 구글 폰트 링크)
 ```
-→ http://localhost:5322/web/index.html (`?go=1` = 시작 화면 건너뜀). 데스크톱 앱 미리보기 이름 `war-demo` (`.claude/launch.json`).
+데스크톱 앱 미리보기 이름 `war-demo`. 파이썬 = 시스템 `python -I` (Pillow · numpy · scipy · opencv-python-headless · imageio-ffmpeg 설치함).
+테스트: 숨은 창이면 rAF 멈춤 → `View.step(dt)` 직접. 테스트 땐 `Camp.save = () => {}` 먼저 (사용자 저장과 localStorage 공유).
 
-단일 HTML: `node war/tools/build_single.js` → `war/build/war.html` (약 5MB, 스크립트 · 그림 전부 내장 — 그림은 `window.__ASSETS` data URI, `Rig.loadImage` 가 먼저 찾음). 그림이나 코드 고친 뒤 다시 돌릴 것.
-
-테스트 요령: 미리보기 창이 숨어 있으면 rAF 가 멈춤 → `View.step(dt)` 를 MessageChannel 루프로 직접 돌림. 테스트 탭은 사용자 탭과 localStorage 를 같이 쓰니 `Roster.save = () => {}` 먼저.
-
-## 사용자가 정한 것
+## 사용자가 정한 것 (최신)
 | 항목 | 결정 |
 |---|---|
-| 시점 | 돈스타브식 **낮은 시점(거의 쿼터뷰, 칸 깊이 TD 34)** + **가짜 원근**(먼 줄일수록 좁고 작게, 맨 뒤 줄 0.68배 `FAR`) + 평평한 그림 판때기. **Q/E = 90° 회전**. 진짜 3D(WebGL) 아님 — 사용자가 캔버스 가짜 원근 + 레이어로 정함 |
-| 원근감 | **2D 그림을 여러 층으로 겹겹이**: 하늘 → 먼 도시 → 먼 언덕 → 먼 들판 → 가까운 들판 → 맵 → 앞 가림 실루엣. 뒤일수록 작고 느리게(시차) · 흐리게. 가까운 들판 아래 띠 = 맵 바닥 색이라 이음매 안 보임 |
-| 그림체 통일 | 바닥 · 배경 층은 **소품과 같은 그림체**여야 함 (그림체 다른 바닥은 거절됨). 소품을 만든 ChatGPT 대화 "Generate Image Grid" 에 이어서 요청하면 같은 그림체가 나옴 |
-| 부위 판정 | 맞은 부위 굴림(`RULES.hitParts`, 치명타면 머리 ↑). **머리 = 즉사**. 팔 = 그 판 명중 −30 + 재장전 35% 실패. 다리 = 이동 절반. 팔 · 다리로 체력 0 또는 치명타 잘림 → **쓰러짐**(행동 불가, 고양이가 **확인사살** 가능). 이기면 쓰러진 쥐 생존, 지면 전사. **잘린 팔 · 다리 = 의수 · 의족 연구 전엔 출전 불가**(분대 기록 `lost`, 빈자리 신병). 의무병 · 연구는 나중에 |
-| 캐릭터 | 사람 비율 몸 + 쥐 머리(슈피겔만 『쥐』), **앞 · 옆 · 뒤 3방향 리그** |
-| 그림체 | NKK 원본 플랫. 쥐 눈 = **검은 점**(눈썹 · 흰자 넣은 만화풍은 "불쾌한 골짜기"라 거절 → `art/src/gpt/rat_body_expr.png` 는 안 씀) |
-| 표정 | 피격 · 공격 때 **눈 점 모양만** 바꿈 (`rig.js drawFace`: hit = `>`, attack = 납작한 점 + 눈꺼풀, dead = ×) |
-| 리깅 | **리깅으로 되는 건 최대한 리깅**: 대기 숨쉬기 · 걷기 · 조준 · 반동 · 피격 · 옆모습 웅크림 · 쓰러짐 · 신체 절단. 통그림 컷은 앞/뒤 엄폐 웅크림 · 수류탄 투척 · 박격포 조작만 |
-| 턴 | 진영 교대(엑스컴): 행동력 2, 사격 등은 턴 끝, 경계 사격, 제압 |
-| 표현 | 피 · **신체 절단 허용**(참수 · 팔 · 터짐), 피는 평평한 검붉은 덩어리 2톤 |
-| 분대 | **영구 사망**(죽은 쥐 재사용 불가 · 전사자 명단), **엑스컴식 성장**(경험치 → 계급 이병~하사, 명중 · 체력 보너스) — `localStorage war_roster_v1` |
-| 범위 | 지금은 **전투 1판 데모**. 손맛 OK 전에 캠페인 · 기지 · 장비 화면 만들지 말 것 |
+| 시점 | 돈스타브식 낮은 시점 + 가짜 원근(`FAR` 0.56) + 평평한 판때기 + 배경 층 겹치기. **Q/E 회전 없앰** — 늘 쥐(앞)에서 적(뒤)을 봄 |
+| 맵 | 22줄 × 18칸, 뒤로 확장(참호선 · 폐허 마을). **맵 끝이 안 보이게**: 바깥 땅 = 안쪽 땅, 바깥은 늘 안개, 바깥에 경치 소품(탱크 · 성당 · 대포 · 전봇대 …) |
+| 안개 | 안 보이는 곳 = 채도 빼기 + 어둡게 + 옅은 연무 두 겹이 흐름 |
+| 출전 | 한 판 **최대 6마리** |
+| 병종 | **육각 벌집 스킬판**(가운데 신병, 6갈래 사격 · 화력 · 폭파 · 기동 · 지원 · 정찰)을 찍은 방향으로 병종이 정해짐: 저격수 · 기관총 사수 · 공병 · 코만도 · 의무병 · 정찰병 + 혼합 통신병(사격+정찰) · 주술사(지원+정찰, **영매 특성만**). 박격포병 · 바주카병은 뺌 |
+| 쥐 테마 능력 | 모든 병종에 하나씩: 잽싼 발 · 쥐구멍 매복 · 찍찍 함성 · 땅굴 · 철조망 갉기 · 폭약(엄폐물 파괴는 공병) · 벽 타기 · 치즈 배급 · 수염 감지 · 쥐떼 전령 · 정신 지배 · 마법 방어막. 화염방사기 = 공병 노드 장비 |
+| 개체 애착 | 쥐마다 얼굴(7) · 털 · 고향 · 사연 · 특성 2~3 · 장비 버전 · 흉터/의수 · 스트레스 기록 · 추모비 |
+| 스트레스 | 다키스트 던전식. 100(특성으로 80~120) 넘으면 공황 · 광란(아군 사격) · 도주. 쉬면 회복 → 다음 임무에서 쉬게 하는 선택 |
+| 엎드리기 | 버튼 없음. 엄폐물 옆에서 안 쏘고 턴을 마치면 자동 |
+| 리깅 | 리깅 동작은 유지(사용자 만족). **머리 파츠 = 개체 얼굴 + 병종 군모 한 장**(모자 따로 오려 붙이기는 구멍 생겨서 버림). 앞/뒤 엄폐 웅크림 = **예전 통그림 자세 그대로 머리만 뺀 몸 파츠 + 개체 머리 파츠**. 투척 = 리그, 박격포 = 옆 웅크림 + 박격포 소품 |
+| 전투 UI | 하단에 분대 카드 줄, 턴 종료 위에 엑스컴식 작은 행동 아이콘 묶음, 마우스를 올리면 롤식 툴팁 |
+| 그림 · 소리 | 그림 = 크롬의 ChatGPT, 배경음 = 크롬의 제미나이 (Codex 안 씀) |
 
 ## 파일
 | 위치 | 내용 |
 |---|---|
-| `web/data.js` | 무기 · 능력 · 병과(쥐 4 + 고양이 3) · 맵(18×14 문자열, 언덕 타원) · 규칙 수치 |
-| `web/world.js` | 칸 · 높이 · 시야(LOS, 높은 엄폐 옆에서 몸 내밀기) · 방향별 엄폐 · 길찾기 |
-| `web/game.js` | 턴 흐름 · 명중률 · 사격 · 폭발 · 사망 · 고양이 AI(칸 점수 · 진지 선점 · 수류탄 · 제압) · 분대 기록 |
-| `web/rig.js` | 컷아웃 리그 그리기 + 동작(pose) + 눈 점 표정 + 통그림 컷 교체 |
-| `web/view.js` | 화면: 회전 좌표 · **원근(`proj` · `unproj` · `P` 가 자리 + 배율 `s`)** · 바닥을 평면으로 굽고 가로 띠로 잘라 사다리꼴로 다시 그림(`warp`) · 배경 층 쌓기(`BACK_LAYERS`) · 깊이 정렬 · 가림 반투명 · 효과 · 입력 · 합성 소리. 칸 표시 · 클릭은 사다리꼴(`tileQuad` · `inQuad`) |
-| `web/ui.js` · `index.html` | HUD(분대 카드 · 능력 버튼 · 명중 분해 · 기록 · 배너 · 시작/끝 화면) |
-| `art/src/gpt/*.png` | ChatGPT 원본 시트 (rat/cat_body · rat/cat_poses · props · weapons · **terrain**(소품 그림체 6칸) · **layers**(배경 4줄: far · hills · field · front)). 안 쓰는 것: `terrain_v1`(위장무늬) · `terrain_v2`(그림체 안 맞음) · `backdrop`(예전 3줄) |
-| `art/rat` · `art/cat` | `full_*.png`(시트 3칸) · `rig_src.json`(관절 · 영역) · `parts/` · `rig.json/js` |
-| `art/out/` | `prep.py` 결과(자세 컷 · 소품 · 무기 · 지형 · 배경 층) + `assets.js` |
-| `art/nkk/` | NKK 원본 머리 그림 (총통 고양이 `cat_boss_fuhrer` = 시작 화면) |
-| `tools/` | `serve.js` · `slice_body.py` · `rig_cut.py`(기사 쥐 것 복사 + 'light' 색) · `prep.py` |
+| `web/data.js` | 무기 · 능력(쥐 테마 포함) · 고양이 병종 5(소총 · 기관총 · 장교 · 저격 · 화염) · 맵 2종 · 임무 4 · `missionMap()`(좌우 반전) · 규칙 |
+| `web/skills.js` | 육각판(반지름 3, 37칸) · 갈래 · 칸 효과 `NODE_FX` · 병종 `RAT_CLASSES` · `Skills.classOf/canTake/totals` |
+| `web/camp.js` | 아웃게임 기록 `war_camp_v2`: 분대 · 모집 · 특성(30종, 상충 쌍) · 스트레스 · 계급(이병~원사) · 임무 진행 · 판 결과 정산 |
+| `web/game.js` | 턴 · 명중(특성 · 버프 · 표적 · 근접) · 능력 실행 · 스트레스/정신 이상 · 불 · 땅굴 · 지배 · 고양이 AI(화염병 포함) · 목표(전멸 · 표적 · 깃발) |
+| `web/world.js` | 칸 · 언덕(여러 개) · 시야 · 엄폐 · 길찾기(땅굴 · 벽 타기) |
+| `web/rig.js` | 리그 그리기: 병종 리그 + 개체 머리(`head_f<n>`) + 웅크림 몸(`crouch`) + 의수 · 의족 빛 + 장비 버전(`baseR`) |
+| `web/view.js` | 화면 · 원근 · 바닥 굽기 · 경치 · 안개 · 그림자 · 효과(그림 시트) · 시네마틱(치명 슬로 · 줌 · 레터박스 · 히트스톱) · 입력 |
+| `web/ui.js` | 전투 HUD · 롤식 툴팁 · 끝 화면 / `web/lobby.js` 사령부(작전 · 분대 · 모집 · 추모비) + 배경음 `Music` |
+| `art/rigs.js` | 모든 리그 묶음 (`tools/hats.py bundle` 이 만듦) |
+| `art/<종>_<병종>[_v1|_v2|_flame]/` | 병종 · 장비 버전 리그. 병종 기본 리그에 `parts/<시점>/head_f<n>.png`(개체 머리) · `crouch.png` |
+| `art/out/` | 소품 · 지형 · 배경 층 · `deco/`(경치) · `fx/`(효과) · `icons/`(스킬 아이콘) · `ui/`(UI 키트) · `lobby_bg.jpg` |
+| `art/audio/` | `lobby.mp3` · `battle.mp3` (제미나이 생성, mp4 → imageio-ffmpeg 로 변환) |
+| `art/src/gpt/` | ChatGPT 원본 시트 전부 (아래 파이프라인의 입력) |
 
-## 그림 파이프라인
-1. **생성 = 옆 창 브라우저의 ChatGPT** (사용자 Plus 계정, 이미 로그인됨). Codex CLI 는 이날 한도(21:26 이후 가능)라 안 씀. `art/src/make_prompts.js` · `gen.sh` 는 Codex 용 예비.
-   - 참조 그림 첨부: 작은 JPEG 를 base64 로 JS 에 넣어 `input[type=file]` 에 DataTransfer 로 넣음 (fetch/iframe 은 ChatGPT CSP 가 막음)
-   - 결과 받기: 이미지 blob → base64 → **폼 POST** `http://localhost:5322/upload-form` → `art/src/gpt/<이름>.png` (브라우저 다운로드 · 클립보드는 안 됨, 로그인 토큰 API 는 권한 거부됨 — 쓰지 말 것). 사용자가 이 작업용 다운로드를 허락함
-   - 스타일 참조: 플랫이 부족하면 NKK `Props/gun·dynamite·axe` + `Furniture/furn_cabinet` 묶음을 붙이고 "2-3 tones, no texture" 로 다시 요청 (소품 · 지형은 이렇게 다시 뽑아 통과)
-2. 몸 시트 → `python war/tools/slice_body.py war/art/src/gpt/rat_body.png war/art/rat` (격자 `_grid_*.png` 로 좌표 읽기)
-3. `rig_src.json` 고치고 → `python war/tools/rig_cut.py war/art/rat` → `_assign_*.png` 확인
-4. `python war/tools/prep.py` → `art/out/` (자세 컷은 ChatGPT 가 칸마다 축척을 안 지켜서 `POSE_H` 자세별 키 비율로 맞춤)
+## 그림 파이프라인 (크롬 ChatGPT)
+- 받기: 페이지에 `__prep(name)` → 빨간 버튼 클릭 → 폼 POST `localhost:5322/upload-form` → `art/src/gpt/`. 음악(제미나이)은 CSP 때문에 `<a download>` → `~/Downloads/*.tmp` → 옮겨서 변환
+- 병종 몸: 기본 시트(`rat_body.png` / `cat_body.png`)를 틀로 "같은 자리 · 자세, 옷만 바꿈" → `rat_cls_<병종>.png` → `python -I war/tools/class_rigs.py` (자르기 · 리그)
+- 개체 머리: 병종 시트 + 얼굴 참조(`ref_rat_faces.png`)로 7줄 × 3칸 머리 시트 → `tools/head_sheet.py <시트> <리그> <줄수>` (모자 위 40% 폭 · 윗선으로 맞춤). 고양이는 5줄
+- 웅크림: `crouch_rat.png`(예전 통그림 자세, 머리 없음)을 병종 시트로 옷만 바꿔 → `tools/crouch.py <시트> <리그>` (목 = 위쪽 살색/회색 덩어리)
+- 장비 버전: 병종 시트 → 버전 A/B → `rat_cls_<병종>_v1|_v2.png` → class_rigs. 머리 · 웅크림은 병종 기본 리그 것을 씀
+- 경치 `tools/deco.py` · 효과 `tools/fx.py` · 아이콘 `tools/icons.py` · UI 키트 `tools/ui_kit.py`
+- 검토: `tools/compose_check.py`, 리그 합성 확인 이미지는 `docs/check/`
 
-파이썬: `C:/Project/underworld-proto/.venv/Scripts/python.exe -I` (numpy · Pillow · scipy · cv2)
+## 확인된 것
+- 사령부 → 출격 → 전투 → 결과 → 사령부, 콘솔 에러 없음. 자동 플레이로 여러 턴(사격 · 수류탄 · 함성 · 고양이 턴 · 스트레스) 에러 없음
+- 개체 머리 7 × 병종 9, 고양이 머리 5 × 병종 4, 웅크림(쥐 9 · 고양이 3+), 단일 HTML 빌드
 
-## 확인된 것 (브라우저)
-- 첫 화면 · 배경 3층 · 언덕(윗면 밝게 + 남쪽 옆면 · 그림자) · 소품 · 쥐 리그 · HUD 렌더, 콘솔 에러 없음
-- 이동 → 고양이 무리 발견 → 엄폐로 흩어짐, Q/E 회전 후 이동까지 에러 없음
+## 남은 그림 대기열 (ChatGPT 이미지 한도로 멈춤 — 2026-10-27 16:27 이후 재개)
+크롬 ChatGPT 대화 "WW2 Sprite Sheet Design"(병종 시트 그림체)에서, 매번 해당 시트를 첨부하고 아래 프롬프트로 생성 → `art/src/gpt/<파일>` 로 저장 → 처리 명령.
+- 장비 버전 A (`rat_cls_<병종>_v1.png`): 프롬프트 = "GEAR VARIANT A of this newly attached class sheet. Keep EXACTLY the same canvas, 3 views, positions, pose, proportions, head, helmet, tail and the same class identity and weapon type held the same way. Change only details so a second soldier of this class looks different: darker olive uniform shade, a rolled blanket strapped on top of the pack, a canteen on the right hip, an extra ammo bandolier worn diagonally, a slightly different model of the same weapon. Same flat 2-3 tone style, no outlines, no texture, solid pure magenta #FF00FF background."
+- 장비 버전 B (`rat_cls_<병종>_v2.png`): "GEAR VARIANT B … lighter faded khaki uniform shade, a knotted neck scarf, sleeves rolled up, two document pouches on the chest, a small folding shovel on the belt, a different model of the same weapon …" (나머지 문장 A 와 같음)
+- 대상: engineer v1 · v2, commando v1 · v2, medic v1 · v2, scout v1 · v2, radio v1 · v2, shaman v1 · v2, 소총수(첨부 `rat_body.png`, 파일 이름 `rat_cls_recruit_v1/v2.png` → 리그 이름 `rat_recruit_v1/v2`) — 처리: `python -I war/tools/class_rigs.py rat_<병종>_v1` 후 `python -I war/tools/hats.py bundle`
+- 공병 화염방사기 (`rat_cls_engineer_flame.png`, 첨부 `rat_cls_engineer.png`): "FLAMETHROWER VERSION of this newly attached combat engineer sheet. Keep EXACTLY the same canvas, 3 views, positions, pose, proportions, head, helmet and tail. Replace the rifle with a WW2 flamethrower wand held in the same hands at the same angle, with a small pilot flame at the nozzle and a hose running to two fuel tanks strapped on the back instead of the backpack; add a leather apron and a gas mask bag. …" → class_rigs `rat_engineer_flame`
+- 고양이 웅크림 (`crouch_cat_catsniper.png` · `crouch_cat_catflame.png`, 첨부 `crouch_cat.png` + `cat_cls_<병종>.png`): "SPRITE EDIT. Attached: (1) two HEADLESS crouching cat soldier body parts …, (2) a cat class soldier sheet. Redraw image (1) EXACTLY … change the clothes and equipment to match … Keep them HEADLESS …" → `python -I war/tools/crouch.py art/src/gpt/crouch_cat_<병종>.png cat_<병종>`
+- 소총수 버전: 리그 이름이 `rat_recruit_v1` 이면 `view.js rigOf` 가 `rat_recruit_v<n>` 을 찾음 (기본 `rat` 리그의 머리 · 웅크림을 씀)
 
-- (10-26 오후) 자동 플레이로 한 판 끝까지(패배) + 승리 강제: 사격 · 사망 · 절단(decap · sever · burst) · 피 · 고양이 턴 AI · 박격포 · 승패 화면 · 진급 · 전사자 명단 · 다음 전투, 콘솔 에러 없음. 단일 HTML 에서도 같음 (외부 요청 0)
-
-## 10-26 오후에 고친 것
-- 무리 깨우기: **`RULES.wakeRange` 6칸 안에서 서로 보여야** 깸. 더 멀면 보이기만 함(머리 위 `?`, 명중 창 "눈치 못 챔") → 먼저 쏠 수 있고, 쏘면(빗나가도) 그 무리가 깸. 박격포 칸에 서면 무리 2개(C · D)만 깸 (전엔 4개 다)
-- 언덕 시야 보너스 +2 → +1
-- 중기관총 명중이 진지 무기(hmg) 거리 보정을 안 쓰던 것
-- 박격포는 분대가 보는 칸만 (`tileTargetOk`)
-- 고양이 AI 의 "지금 자리 측면 노출" 판정이 쥐 한 마리만 보던 것
-- 다음 전투 때 지난 판 핏자국 · 조각이 남던 것 (`View.reset`)
-
-## 10-26 밤에 한 것
-- 부위 판정 · 부상 · 쓰러짐 · 확인사살 · 의수/의족 대기 (위 표). 브라우저에서 강제로 확인: 팔 명중 −30 · 재장전 40번 중 13번 실패 · 다리 이동 5→2 · 다리 잘림 → 쓰러짐(정강이 떨어져 나감) · 머리 1 피해로 즉사 · 고양이 확인사살 · 이긴 뒤 쓰러진 쥐 생존 · 잘린 쥐 출전 제외 + 신병 보충
-- 낮은 시점 + 가짜 원근 + 배경 층 쌓기, 바닥 · 배경을 소품 그림체로 새로 뽑음. 클릭 칸 = 발밑 칸 일치 확인, Q/E 회전 확인
-- 시야 안개 칸 경계 부드럽게, 길 끊김 없이, 배경 그림 마젠타 섞인 반투명(연기 · 철조망) 제대로 풀기
-
-## 아직 확인 못 한 것 / 알려진 문제
-- 원근: 언덕 위 시야 안개는 높이만큼 살짝 어긋남. 배경 층 크기 · 속도(`BACK_LAYERS`)는 눈대중 — 사용자 확인 필요
-- 쓰러진 쥐 살리기(응급 처치 · 의무병)는 아직 없음. 쥐는 쓰러진 고양이를 확인사살 못 함 (필요 없어서)
-- 사람 손으로 한 판 손맛 확인은 아직 (자동 플레이는 밸런스 판단 못 함 — 바보 AI 쥐는 4턴에 전멸)
-- 쥐가 중기관총 진지(G) 잡는 경우는 직접 안 해 봄 (시작 때 고양이 기관총병이 그 칸에 있음)
-- 앞 · 뒤 리그는 팔과 총이 몸통에 붙어 있음(조준은 반동만). 병과별 무기(`art/out/weapons`)는 아직 안 갈아 끼움 — 지금은 모두 소총 그림. 무기 시트 플랫 버전은 ChatGPT 탭에 요청만 해 둠(저장 안 함)
-- 고양이 장교 · 기관총병은 같은 그림에 색 필터만. NKK `boss_dictator`(장교 모자) · `boss_turret`(철모) 머리를 쓰는 변형 시트 생성 필요
-- 쥐 머리 변형도 색 필터(`HEAD_TINTS`)만
-- 사망은 쓰러지는 리그 + 절단만. 통그림 사망 시트는 안 만듦 (리그 우선 결정)
-- 회전 시 언덕 위 핏자국은 높이만큼 살짝 어긋날 수 있음
-
-## 다음 순서 (제안)
-1. 한 판 끝까지 플레이하며 위 미검증 항목 확인 · 고치기 → 사용자에게 손맛 확인 받기
-2. 무기 플랫 시트 받아 병과별 무기 교체 (옆모습 `arm` 부위의 총을 무기 그림으로)
-3. 고양이 장교 · 기관총병 · 쥐 머리 변형 시트
-4. 사용자 OK 뒤: 진급 때 능력 고르기, 미션 선택 · 기지 화면
+## 남은 것 / 알려진 문제
+- 장비 버전 A/B: 저격 · 기관총은 완료, 나머지 병종은 생성 중이었음 (없으면 기본 복장으로 나옴 — 깨지지 않음)
+- 사람 손 플레이로 밸런스(스트레스 증가량 · 특성 수치 · 임무 난이도) 확인 필요
+- 의수 · 의족은 지금 파츠 색만 바꿈 (전용 파츠 그림 미생성)
+- 고양이 저격병 · 화염병 웅크림은 생성 중이었음 (없으면 고양이 기본 웅크림)
+- 앞 웅크림에서 총이 얼굴 앞이 아니라 뒤에 그려짐 (몸 파츠 위에 머리를 그려서)
+- 글꼴은 구글 폰트 링크라 오프라인 단일 HTML 에선 기본 글꼴로 대체됨

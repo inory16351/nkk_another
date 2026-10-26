@@ -226,6 +226,7 @@ const UI = (() => {
       <h1 class="${result}">${result === 'win' ? '작전 성공' : '작전 실패'}</h1>
       <p>${G.mission.name} — ${result === 'win' ? '고양이들이 물러갔다.' : '분대가 무너졌다. 살아 돌아온 쥐는 많지 않다.'} 보급품 +${out.reward}</p>
       <div class="reps"></div>
+      ${out.drafted ? `<p class="dim">빈자리를 채우려고 징집병 ${out.drafted}마리가 사령부에 도착했다.</p>` : ''}
       <div class="btns"><button class="btn big" id="tohq">사령부로</button></div>
     </div>`;
     const box = $('end').querySelector('.reps');

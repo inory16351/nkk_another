@@ -101,7 +101,7 @@ function updateVision() {
     const whisk = rats().some((r) => r.whisker && World.dist(r, c) <= r.whisker);
     const seenNow = G.vis.has(c.z * w.W + c.x) || whisk || G.scan > 0;
     if (seenNow && !c.seen) c.seen = true;
-    c.visible = seenNow;
+    c.visible = seenNow || !!c.revealed;
     if (!c.active && rats().some((r) => World.dist(r, c) <= RULES.wakeRange && World.canSee(w, c, r))) wake.add(c.pod);
   }
   return wake;
@@ -176,6 +176,7 @@ function beginTurn(side) {
     // 지배 끝난 고양이는 돌아감
     for (const u of G.units) if (u.controlled && --u.controlled <= 0) { u.side = 'cat'; u.active = true; u.tint = 'none'; View.popup(u, '정신 돌아옴', '#ff9f8f'); say(`${u.name} 지배 풀림`, 'warn'); }
   }
+  if (side === 'cat') for (const c of G.units) c.revealed = false;
   for (const u of G.units.filter((u) => u.alive && u.side === side)) {
     u.ap = RULES.ap; u.moved = false;
     u.overwatch = false; u.hunker = false; u.buffAim = 0; u.fired = false;
@@ -410,6 +411,8 @@ async function shoot(a, b, opts = {}) {
   const lethal = hit && (crit || dmg >= b.hp + (b.ward || 0));
   if (a.hidden) { a.hidden = false; View.popup(a, '매복!', '#8fd0ff'); }
   a.fired = true;
+  // 안개 속 고양이가 쏘면 그 자리가 드러남 (다음 고양이 차례까지) — 어디서 쐈는지 보이게
+  if (a.side === 'cat' && !a.visible) { a.revealed = true; a.visible = true; a.seen = true; View.focusPair(a, b); View.popup(a, '발견!', '#ff9f8f'); }
   if (lethal) await View.cinematic(a, b, crit);
   for (let i = 0; i < shots; i++) {
     View.muzzle(a, b, hit, { crit, last: i === shots - 1, weapon: opts.heavy ? 'hmg' : a.def.weapon });
@@ -417,7 +420,7 @@ async function shoot(a, b, opts = {}) {
     a.st.recoil = 1;
     await sleep(shots > 1 ? 90 : 160);
   }
-  if (lethal) await View.bulletTime(b, crit);
+  if (lethal) await View.bulletTime(a, b, crit);
   if (hit) {
     await damage(b, dmg, { crit, from: a, kind: a.def.weapon, part: rollHitPart(crit) });
   } else {
