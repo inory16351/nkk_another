@@ -31,8 +31,9 @@ for (const src of scripts) {
 const EXTRA = [];
 const pfx = PAGE.includes('chess') ? '../../' : '../';
 if (PAGE.includes('chess')) {
-  for (const n of ['cat_bishop', 'cat_king', 'cat_knight', 'cat_pawn', 'cat_queen', 'cat_rook', 'fieldmouse', 'knight', 'ratking', 'ratqueen', 'viking', 'wizard']) {
-    EXTRA.push(`${pfx}art/chess/fig/${n}.png`);
+  // 체스 그림 폴더 통째 (기물 · 증강 · 팔 · 몸 · 받침)
+  for (const d of ['fig', 'aug', 'arm', 'body', 'base']) {
+    for (const n of fs.readdirSync(path.join(ROOT, 'art/chess', d))) if (n.endsWith('.png')) EXTRA.push(`${pfx}art/chess/${d}/${n}`);
   }
   for (const n of ['board', 'wall', 'bg']) EXTRA.push(`${pfx}art/chess/${n}.png`);
   for (const n of ['hit1', 'hit2', 'hit3', 'sparks', 'arc', 'slash', 'burst', 'charge', 'wave', 'beam', 'ripple', 'lightring']) {
@@ -61,8 +62,8 @@ for (const rel of want) {
   const c = path.join(ROOT, 'build', 'cache', path.relative(ROOT, path.normalize(path.join(WEB, rel)))) + '.webp';
   assets[rel] = 'data:image/webp;base64,' + fs.readFileSync(c).toString('base64');
 }
-html = html.replace(/src="(\.\.\/art\/[^"]+\.png)"/g, (m, rel) => `src="${assets[rel] || rel}"`);
-html = html.replace(/url\('(\.\.\/art\/[^']+\.png)'\)/g, (m, rel) => `url('${assets[rel] || rel}')`);
+html = html.replace(/src="((?:\.\.\/)+art\/[^"]+\.png)"/g, (m, rel) => `src="${assets[rel] || rel}"`);
+html = html.replace(/url\('((?:\.\.\/)+art\/[^']+\.png)'\)/g, (m, rel) => `url('${assets[rel] || rel}')`);
 let first = true;
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => {
   const code = read(path.join(WEB, src)).replace(/<\/script/gi, '<\\/script');

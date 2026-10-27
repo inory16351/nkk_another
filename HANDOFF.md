@@ -84,7 +84,7 @@ node tools/build_single.js web/chess/index.html build/기사쥐_체스.html # �
   - 들쥐 병사: 돌격 찌르기(제자리 전방 찌르기) / 끝 줄 도달 시 여왕 승급.
 - **5개 층수 스테이지 & 보스전**: 1층 척후조부터 5층 독재 고양이 킹 보스전까지 점진적 난이도.
 - **실행**: `node tools/serve.js 5323` → http://localhost:5323/web/chess/index.html
-- **단일 HTML**: `node tools/build_single.js web/chess/index.html build/기사쥐_체스.html` (3.14MB, 더블클릭 실행 가능) — ※ 아래 증강 · 팔 · 몸 · 받침 그림은 build_single EXTRA 에 아직 안 넣음 (다시 빌드하려면 추가 필요)
+- **단일 HTML**: `node tools/build_single.js web/chess/index.html build/기사쥐_체스.html` (~2.3MB, 더블클릭 실행 가능, art/chess 의 fig · aug · arm · body · base 폴더 통째로 품음. 코드에서 <img> 만들 땐 ART(경로) 로 감쌀 것)
 
 ### 2026-10-26 밤 수정 · 추가 (사용자: "먼가 이상함" → 고침, "일정 스테이지마다 증강", "기물마다 고유 액션 리깅으로")
 - 고친 것: 판 원근 텍스처 오타(`texQuad` dy 의 c[0]→c[1], 칸이 삼각형으로 깨졌음) · 카메라 맞춤(매 프레임 기준값부터, 옆면까지) · 그림에 이미 받침이 있는데 코드 타원 받침을 또 그리던 것 삭제 · 고양이 좌우 뒤집힘(그림 원래 방향 기준) · 여왕 결박이 걸리자마자 풀리던 것 · 호령 등 판 안 버프가 덱 공격력에 영구 저장되던 것 · 차례 표시가 위 스테이지 바와 겹치던 것(바 안 `#st-turn` 으로) · 안 쓰는 리그 스크립트 로드 삭제 · 체력 표시 = 하트 그림.

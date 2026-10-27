@@ -49,6 +49,7 @@
 
   // ───────── 그림 · 이펙트 불러오기
   const IMG = {}, FIG = {};
+  const ART = (p) => (window.__ASSETS && window.__ASSETS[p]) || p; // 단일 HTML 빌드면 품은 그림(data URI)
   const opt = (src) => loadImage(src).catch(() => null);
   const jobs = [];
 
@@ -338,7 +339,7 @@
   function drawAugBar() {
     const el = $('#aug-bar');
     if (!el) return;
-    el.innerHTML = run.augs.map((id) => `<div class="aug-chip" title="${AUGS[id].name} — ${AUGS[id].desc}">${AUGIMG[id] ? `<img src="../../art/chess/aug/${id}.png" alt="">` : '✦'}<span>${AUGS[id].name}</span></div>`).join('');
+    el.innerHTML = run.augs.map((id) => `<div class="aug-chip" title="${AUGS[id].name} — ${AUGS[id].desc}">${AUGIMG[id] ? `<img src="${ART(`../../art/chess/aug/${id}.png`)}" alt="">` : '✦'}<span>${AUGS[id].name}</span></div>`).join('');
   }
 
   // ───────── 체스 이동 규칙
@@ -957,7 +958,7 @@
     const cardRecruit = document.createElement('div');
     cardRecruit.className = 'reward-card';
     cardRecruit.innerHTML = `
-      <div class="card-icon"><img src="../../art/chess/fig/${u.art}.png" alt="${u.name}"></div>
+      <div class="card-icon"><img src="${ART(`../../art/chess/fig/${u.art}.png`)}" alt="${u.name}"></div>
       <div class="card-name">${u.name} 영입</div>
       <div class="card-type">${TYPES[pickType].mark} ${TYPES[pickType].name} 추가</div>
       <div class="card-stats">
@@ -1065,7 +1066,7 @@
     for (const id of pool) {
       const a = AUGS[id], card = document.createElement('div');
       card.className = 'reward-card aug-card';
-      card.innerHTML = `<div class="card-icon">${AUGIMG[id] ? `<img src="../../art/chess/aug/${id}.png" alt="">` : '✦'}</div><div class="card-name">${a.name}</div><div class="card-desc">${a.desc}</div>`;
+      card.innerHTML = `<div class="card-icon">${AUGIMG[id] ? `<img src="${ART(`../../art/chess/aug/${id}.png`)}" alt="">` : '✦'}</div><div class="card-name">${a.name}</div><div class="card-desc">${a.desc}</div>`;
       card.onclick = () => { run.augs.push(id); run.augPicked = { ...(run.augPicked || {}), [run.stage]: true }; advanceNextStage(); };
       box.appendChild(card);
     }
@@ -1453,12 +1454,12 @@
       atkEl.textContent = '—';
       hpEl.textContent = '—';
       descEl.innerHTML = '내 기물(쥐)을 클릭하면 갈 수 있는 칸(파란색)과 공격 칸(빨간색)이 표시됩니다.';
-      figImg.src = '../../art/chess/fig/fieldmouse.png';
+      figImg.src = ART('../../art/chess/fig/fieldmouse.png');
       skillBox.style.display = 'none';
       return;
     }
 
-    figImg.src = `../../art/chess/fig/${p.def.art}.png`;
+    figImg.src = ART(`../../art/chess/fig/${p.def.art}.png`);
     nameEl.textContent = p.def.name;
     typeEl.textContent = `${TYPES[p.type].mark} ${TYPES[p.type].name} · ${p.side === 'ally' ? '쥐 왕국' : '흑묘 기사단'}`;
     starsEl.textContent = `★ Lv.${p.level || 1}`;
