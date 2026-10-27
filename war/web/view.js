@@ -3,7 +3,7 @@
 // 원근은 맵에 고정 (카메라를 옮겨도 사다리꼴 모양은 그대로, 대신 배경 층들이 서로 다른 속도로 움직임)
 const TW = 72, TD = 34, EL = 26; // 칸 가로 · 칸 깊이(평면 판 세로) · 높이 1 의 px. TD 가 작을수록 시점이 낮음
 const UNIT_H = 118; // 서 있는 병사 화면 키 (줌 1, 맨 앞 줄)
-const FAR = 0.56;   // 맵 맨 뒤 줄의 크기 배율 (맨 앞 줄 = 1). 맵이 22줄로 깊어져서 더 작게
+const FAR = 0.42;   // 맵 맨 뒤 줄의 크기 배율 (맨 앞 줄 = 1). 0.56 은 원근이 약해 평평해 보여서 더 줄임 (10-27)
 
 const View = (() => {
   const cv = document.getElementById('cv');
@@ -42,20 +42,70 @@ const View = (() => {
   }
   const dirR = (dx, dz) => (rot === 1 ? [-dz, dx] : rot === 2 ? [-dx, -dz] : rot === 3 ? [dz, -dx] : [dx, dz]);
   const dimsR = () => (rot % 2 ? [G.world.D, G.world.W] : [G.world.W, G.world.D]);
-  // ── 가짜 원근: 평면 판 (fx, fy) → 화면-세계 px. 앞 끝(fy = nearY)은 1배, 뒤로 갈수록 F/(F + 거리) 로 작아짐 ──
-  // 세로 자리는 배율을 적분한 값이라 줄 사이 간격도 같이 좁아짐. 회전하면 맵 가로 · 세로가 바뀌므로 다시 계산
-  const persp = { cx: 0, nearY: 1, F: 1, rot: -1 };
+  // ── 가짜 원근: 평면 판 (fx, fy) → 화면-세계 px. 기준 줄(fy = nearY)은 1배, 뒤로 갈수록 F/(F + 거리) 로 작아짐 ──
+  // 세로 자리는 배율을 적분한 값이라 줄 사이 간격도 같이 좁아짐.
+  // 원근은 카메라를 따라감 (camPersp): 기준 줄 = 화면 가운데 줄, 소실 가로 = 화면 가운데, F = 카메라 ↔ 기준 줄 거리 (당기면 짧아짐 = 다가가기)
+  // F0 · front = 예전 고정 원근 (맵 앞 끝 1배). 화면 크기 맞추기(zEff)에만 씀
+  const persp = { cx: 0, nearY: 1, F: 1, F0: 1, front: 1, rot: -1 };
   function setPersp() {
     const [RW, RD] = dimsR();
-    persp.cx = (RW * TW) / 2; persp.nearY = RD * TD; persp.F = (RD * TD * FAR) / (1 - FAR); persp.rot = rot;
+    persp.cx = (RW * TW) / 2; persp.nearY = persp.front = RD * TD; persp.F = persp.F0 = (RD * TD * FAR) / (1 - FAR); persp.rot = rot;
   }
-  const scaleAt = (fy) => persp.F / (persp.F + persp.nearY - fy);
-  const projY = (fy) => persp.nearY - persp.F * Math.log((persp.F + persp.nearY - fy) / persp.F);
+  // 카메라 바로 앞(기준 줄보다 0.8F 넘게 앞)은 배율 5배에서 멈추고 곧게 이어짐 (화면 밖이지만 계산이 깨지지 않게)
+  const CAPK = 0.2, CAPL = -Math.log(CAPK);
+  const scaleAtP = (P, fy) => P.F / Math.max(P.F * CAPK, P.F + P.nearY - fy);
+  function projYP(P, fy) {
+    const q = P.F + P.nearY - fy;
+    if (q >= P.F * CAPK) return P.nearY - P.F * Math.log(q / P.F);
+    return P.nearY + P.F * CAPL + (fy - (P.nearY + P.F * (1 - CAPK))) / CAPK;
+  }
+  function unprojP(P, X, Y) {
+    const yc = P.nearY + P.F * CAPL;
+    const fy = Y <= yc ? P.nearY - P.F * (Math.exp((P.nearY - Y) / P.F) - 1) : P.nearY + P.F * (1 - CAPK) + (Y - yc) * CAPK;
+    const s = scaleAtP(P, fy);
+    return { fx: P.cx + (X - P.cx) / s, fy, s };
+  }
+  const scaleAt = (fy) => scaleAtP(persp, fy);
+  const projY = (fy) => projYP(persp, fy);
   function proj(fx, fy, up = 0) { const s = scaleAt(fy); return { x: persp.cx + (fx - persp.cx) * s, y: projY(fy) - up * s, s }; }
-  function unproj(X, Y) {
-    const dz = persp.F * (Math.exp((persp.nearY - Y) / persp.F) - 1);
-    const s = persp.F / (persp.F + dz);
-    return { fx: persp.cx + (X - persp.cx) / s, fy: persp.nearY - dz, s };
+  const unproj = (X, Y) => unprojP(persp, X, Y);
+
+  // 카메라 원근: 화면 가운데 평면 점을 기준으로 F(카메라 거리) · 소실 가로를 맞춤. 동작(tween) · 시네마틱 중엔 멈춤 → 끝나면 부드럽게 따라감
+  // 바뀔 때마다 화면-세계 좌표로 저장된 것(카메라 · 핏자국 · 조각 · 효과)을 새 원근으로 옮김
+  const CAM_D = 640, CAM_DMIN = 250; // 줌 1 의 카메라 거리 · 가장 가까이
+  let zEff = 1; // 실제 화면 배율 = cam.z × (예전 원근이면 가운데 줄이 될 크기 / 지금 원근 크기) → 가운데 줄 병사 크기는 예전과 같음
+  // 평소엔 원근이 카메라에 바로 붙음 (늦게 따라가면 줌 · 이동 뒤에 바닥이 일렁거림). 동작이 끝난 직후만 부드럽게 따라잡음
+  let perspCatch = false;
+  function camPersp(rdt) {
+    if (!G.world || persp.rot !== rot) return;
+    const busy = tweens.length || cine.on || cine.k > 0.02;
+    if (busy) perspCatch = true;
+    else {
+      const f = unproj(cam.x, cam.y);
+      const tF = Math.max(CAM_DMIN, CAM_D / Math.pow(cam.z, 1.2));
+      const gap = Math.abs(tF - persp.F) + Math.abs(f.fx - persp.cx) + Math.abs(f.fy - persp.nearY);
+      if (perspCatch && gap < 2) perspCatch = false;
+      const k = perspCatch ? Math.min(1, rdt * 6) : 1;
+      const n = { cx: persp.cx + (f.fx - persp.cx) * k, nearY: persp.nearY + (f.fy - persp.nearY) * k, F: persp.F + (tF - persp.F) * k };
+      if (gap > 0.02) reproject(n);
+    }
+    const g = unproj(cam.x, cam.y);
+    zEff = cam.z * (persp.F0 / (persp.F0 + persp.front - g.fy)) / g.s;
+  }
+  function reproject(n) {
+    const old = { ...persp };
+    Object.assign(persp, n);
+    const mv = (X, Y) => { const f = unprojP(old, X, Y); const s = scaleAt(f.fy); return { x: persp.cx + (f.fx - persp.cx) * s, y: projY(f.fy), k: s / f.s }; };
+    let p = mv(cam.x, cam.y); cam.x = p.x; cam.y = p.y;
+    if (cam.tx != null && cam.ty != null) { p = mv(cam.tx, cam.ty); cam.tx = p.x; cam.ty = p.y; }
+    // 바닥 자리(gy 또는 y)로 옮기고, 그 위 높이는 크기 비율만큼
+    for (const o of [...stains, ...gibs, ...fx]) {
+      if (o.x == null || o.y == null) continue;
+      const base = o.gy != null ? o.gy : o.y, up = base - o.y;
+      p = mv(o.x, base);
+      o.x = p.x; o.y = p.y - up * p.k;
+      if (o.gy != null) o.gy = p.y;
+    }
   }
   // 세계 (x, z, 높이) → 화면-세계 px + 그 자리 크기 배율 s. d = 깊이(정렬용)
   function P(x, z, h = 0) { const [rx, rz] = toR(x, z); const p = proj((rx + 0.5) * TW, (rz + 0.5) * TD, h * EL); p.d = rz; return p; }
@@ -84,8 +134,8 @@ const View = (() => {
     return (h00 * (1 - a) + h10 * a) * (1 - b) + (h01 * (1 - a) + h11 * a) * b;
   }
   const foot = (u) => { const p = P(u.px, u.pz, unitHeight(u)); p.y += 6 * p.s; return p; };
-  const camMatrix = () => new DOMMatrix([cam.z * DPR, 0, 0, cam.z * DPR, (W / 2 - (cam.x + shx) * cam.z) * DPR, (H / 2 - (cam.y + shy) * cam.z) * DPR]);
-  function screenToWorld(mx, my) { return { x: (mx - W / 2) / cam.z + cam.x, y: (my - H / 2) / cam.z + cam.y }; }
+  const camMatrix = () => new DOMMatrix([zEff * DPR, 0, 0, zEff * DPR, (W / 2 - (cam.x + shx) * zEff) * DPR, (H / 2 - (cam.y + shy) * zEff) * DPR]);
+  function screenToWorld(mx, my) { return { x: (mx - W / 2) / zEff + cam.x, y: (my - H / 2) / zEff + cam.y }; }
   // 칸 고르기: 윗면 사다리꼴, 언덕이면 남쪽 옆면도. 앞(아래) 줄 · 높은 칸이 이김
   function pickTile(mx, my) {
     const p = screenToWorld(mx, my);
@@ -114,9 +164,9 @@ const View = (() => {
     if (!G.world) return;
     const [RW, RD] = dimsR();
     const nearL = proj(0, RD * TD).x, nearR = proj(RW * TW, RD * TD).x;
-    const padX = Math.max(TW * 1.2, (W * 0.22) / cam.z);
-    const top = projY(0) - Math.max(TD * 1.0, (H * 0.15) / cam.z);
-    const bottom = Math.max(top, projY(RD * TD) - (H * 0.3) / cam.z);
+    const padX = Math.max(TW * 1.2, (W * 0.22) / zEff);
+    const top = projY(0) - Math.max(TD * 1.0, (H * 0.15) / zEff);
+    const bottom = Math.max(top, projY(RD * TD) - (H * 0.3) / zEff);
     cam.x = Math.max(nearL - padX, Math.min(nearR + padX, cam.x));
     cam.y = Math.max(top, Math.min(bottom, cam.y));
   }
@@ -124,10 +174,13 @@ const View = (() => {
   // 병사 그림 방향: 세계 방향을 카메라 기준으로 돌려 앞 · 옆 · 뒤 고름
   function viewOf(u) {
     const [dx, dz] = dirR(u.fdx || 0, u.fdz || 0);
-    if (u.forceSide || u.st.throwK || u.mortarT) return { view: 'side', flip: dx < 0 || (dx === 0 && dz < 0) };
+    if (u.forceSide || (u.st.throwK && !hasThrowArt(u, dz > 0 ? 'front' : 'back')) || u.mortarT) return { view: 'side', flip: dx < 0 || (dx === 0 && dz < 0) };
     if (Math.abs(dx) >= Math.abs(dz) * 0.75) return { view: 'side', flip: dx < 0 };
     return { view: dz > 0 ? 'front' : 'back', flip: false };
   }
+
+  // 앞 · 뒤 던지기 그림이 있는 리그인가 (없으면 옆모습으로 던짐)
+  const hasThrowArt = (u, v) => [rigOf(u), baseRigOf(u), RIG[u.r ? 'rat' : 'cat']].some((r) => r && r.data.views[v].throw);
 
   // ── 로드 ──
   async function load() {
@@ -142,6 +195,9 @@ const View = (() => {
     for (const [n, frames] of Object.entries(window.FXART || {})) frames.forEach((f, i) => jobs.push(Rig.loadImage('../art/out/' + f).then((im) => (IM['fx_' + n + i] = im))));
     for (const name of Object.keys(window.RIGS || {})) jobs.push(Rig.load(name).then((r) => (RIG[name] = r)));
     jobs.push(Rig.loadImage('../art/nkk/cat_boss_fuhrer.png').then((im) => (IM.boss_fuhrer = im)));
+    jobs.push(Rig.loadImage('../art/out/sky.jpg').then((im) => (IM.sky = im)).catch(() => {}));
+    jobs.push(Rig.loadImage('../art/out/sky_clouds.png').then((im) => (IM.skyClouds = im)).catch(() => {}));
+    jobs.push(Rig.loadImage('../art/out/bomber.png').then((im) => (IM.bomber = im)).catch(() => {}));
     jobs.push(Rig.loadImage('../art/out/lobby_bg.jpg').then((im) => (IM.lobby_bg = im)).catch(() => {}));
     await Promise.all(jobs);
   }
@@ -187,29 +243,49 @@ const View = (() => {
   }
   // 평면 판 그림 src (픽셀 (sx, sy) = 판 (ox + sx·kx, oy + sy·ky)) 을 가로 띠로 잘라 원근 사다리꼴로 다시 그림
   // fyMin 위로는 버림. 결과 { c, x, y } = 화면-세계 px 자리
-  function warp(src, ox, oy, kx, ky, fyMin = -Infinity) {
-    const fy0 = Math.max(oy, fyMin), fy1 = oy + src.height * ky;
-    const fxL = ox, fxR = ox + src.width * kx;
-    const xs = [proj(fxL, fy0).x, proj(fxL, fy1).x, proj(fxR, fy0).x, proj(fxR, fy1).x];
-    const xMin = Math.min(...xs), xMax = Math.max(...xs), yTop = projY(fy0), yBot = projY(fy1);
-    const c = document.createElement('canvas');
-    c.width = Math.ceil(xMax - xMin) + 2; c.height = Math.ceil(yBot - yTop) + 2;
-    const g = c.getContext('2d');
+  // 원근이 카메라를 따라 바뀌므로 미리 굽지 않고, 매 프레임 화면에 보이는 부분만 화면 px 가로 띠로 그림 (drawWarp)
+  const warp = (src, ox, oy, kx, ky, fyMin = -Infinity) => ({ src, ox, oy, kx, ky, fyMin });
+  // g 에 W 를 그림. M = 화면-세계 → 캔버스 px (확대 + 이동만). dy = 화면-세계 y 로 밀기. 띠 = 캔버스 px 정수 줄 → 띠끼리 틈 · 겹침 없음
+  function drawWarp(g, Wd, M, dy = 0, step = 2) {
+    const { src, ox, oy, kx, ky } = Wd, sc = M.a, e = M.e, f = M.f + dy * sc;
+    const fyLo = Math.max(oy, Wd.fyMin), fyHi = oy + src.height * ky;
+    const cw = g.canvas.width, ch = g.canvas.height;
+    let y = Math.max(0, Math.floor((projY(fyLo) * sc + f) / step) * step);
+    const yEnd = Math.min(ch, Math.ceil(projY(fyHi) * sc + f));
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
     g.imageSmoothingEnabled = true;
-    const step = Math.max(1, Math.round(2 / ky)); // 띠 하나 ≈ 판 2px
-    for (let sy = Math.max(0, Math.floor((fy0 - oy) / ky)); sy < src.height; sy += step) {
-      const n = Math.min(step, src.height - sy);
-      const a = oy + sy * ky, b = a + n * ky, s = scaleAt((a + b) / 2);
-      const y0 = Math.round(projY(a) - yTop), y1 = Math.round(projY(b) - yTop); // 정수 자리로 맞춰 띠끼리 겹침 · 틈 없음 (반투명 그림에 줄 안 생김)
-      if (y1 <= y0) continue;
-      g.drawImage(src, 0, sy, src.width, n, persp.cx + (fxL - persp.cx) * s - xMin, y0, src.width * kx * s, y1 - y0);
+    let a = unproj(0, (y - f) / sc).fy;
+    for (; y < yEnd; y += step) {
+      const b = unproj(0, (y + step - f) / sc).fy;
+      const s0 = Math.max(a, fyLo), s1 = Math.min(b, fyHi);
+      if (s1 > s0) {
+        const s = scaleAt((s0 + s1) / 2), k = s * sc;
+        // 화면 안 가로 범위만 (원본 x)
+        const left = persp.cx * sc + e + (ox - persp.cx) * k;
+        const x0 = Math.max(0, (0 - left) / (kx * k)), x1 = Math.min(src.width, (cw - left) / (kx * k));
+        if (x1 > x0) g.drawImage(src, x0, (s0 - oy) / ky, x1 - x0, (s1 - s0) / ky, left + x0 * kx * k, y, (x1 - x0) * kx * k, step);
+      }
+      a = b;
     }
-    return { c, x: xMin, y: yTop };
+    g.restore();
+  }
+  // 땅 · 안개 뒤 끝 흐리기: 그림 y0 에서 h 만큼 위는 지우고 아래로 갈수록 덜 지움
+  const FADE_ROWS = 3.5;
+  function fadeTop(g, y0, h, w) {
+    g.save();
+    g.globalCompositeOperation = 'destination-out';
+    const gr = g.createLinearGradient(0, y0, 0, y0 + h);
+    gr.addColorStop(0, 'rgba(0,0,0,1)');
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, y0 - 2, w, h + 2);
+    g.restore();
   }
   function buildGround() {
     const w = G.world;
     const [RW, RD] = dimsR();
-    const PX = 16 * TW, PY = 6 * TW; // 옆 여백은 넓게: 원근으로 뒤 줄이 좁아져도 화면 옆까지 땅이 이어지게
+    const PX = 40 * TW, PY = 8 * TW; // 안개(옆 44칸)가 땅보다 넓어야 먼 옆 땅이 밝게 삐져나오지 않음 // 옆 여백은 넓게: 원근으로 뒤 줄이 좁아져도 화면 옆까지 땅이 이어지게
     const c = document.createElement('canvas');
     c.width = RW * TW + PX * 2; c.height = RD * TD + PY * 2;
     const g = c.getContext('2d');
@@ -311,14 +387,9 @@ const View = (() => {
     near.addColorStop(1, 'rgba(30,24,16,0.28)');
     g.fillStyle = near;
     g.fillRect(-PX, RD * TD * 0.75, c.width, RD * TD * 0.25 + PY);
-    // 북쪽 끝: 위로 갈수록 땅을 투명하게 → 중간 배경 층에 녹아듦
-    const fadeTop = g.createLinearGradient(0, TOP, 0, TOP + TD * 2.2);
-    fadeTop.addColorStop(0, 'rgba(0,0,0,1)');
-    fadeTop.addColorStop(1, 'rgba(0,0,0,0)');
-    g.globalCompositeOperation = 'destination-out';
-    g.fillStyle = fadeTop;
-    g.fillRect(-PX, TOP - 1, c.width, TD * 2.2 + 1);
-    g.globalCompositeOperation = 'source-over';
+    // 북쪽(뒤) 끝 FADE_ROWS 줄은 서서히 투명 → 밑에 깔린 배경 층(들판)으로 녹아듦 (딱 끊긴 줄이 안 보이게)
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    fadeTop(g, TOP + PY, TD * FADE_ROWS, c.width);
     ground = warp(c, -PX, -PY, 1, 1, TOP - 2);
     self.groundDirty = false;
   }
@@ -356,14 +427,14 @@ const View = (() => {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, b.width, b.height);
-    const M = new DOMMatrix([cam.z * s, 0, 0, cam.z * s, (W / 2 - (cam.x + shx) * cam.z) * s, (H / 2 - (cam.y + shy) * cam.z) * s]);
+    const M = new DOMMatrix([zEff * s, 0, 0, zEff * s, (W / 2 - (cam.x + shx) * zEff) * s, (H / 2 - (cam.y + shy) * zEff) * s]);
     // 1) 채도 빼기: 회색을 가림막 모양으로 오려 'saturation' 으로 얹음
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = 'rgb(128,128,128)';
     g.fillRect(0, 0, b.width, b.height);
     g.globalCompositeOperation = 'destination-in';
     g.setTransform(M);
-    g.drawImage(fog.mask.c, fog.mask.x, fog.mask.y);
+    drawWarp(g, fog.mask, M);
     ctx.save();
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.globalCompositeOperation = 'saturation';
@@ -381,12 +452,12 @@ const View = (() => {
       g.setTransform(M);
       g.globalAlpha = al;
       g.fillStyle = pat;
-      g.fillRect(fog.mask.x - TW * 4, fog.mask.y - TD * 6, fog.mask.c.width + TW * 8, fog.mask.c.height + TD * 8);
+      g.fillRect(-M.e / M.a, -M.f / M.d, b.width / M.a, b.height / M.d); // 버퍼 전체 (화면-세계 좌표)
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'destination-in';
     g.setTransform(M);
-    g.drawImage(fog.mask.c, fog.mask.x, fog.mask.y - 8);
+    drawWarp(g, fog.mask, M, -8);
     ctx.save();
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.globalAlpha = 0.7;
@@ -394,16 +465,16 @@ const View = (() => {
     ctx.drawImage(b, 0, 0, W, H);
     ctx.restore();
   }
-  const FOG_PAD = 12, FOG_PAD_NEAR = 4; // 바깥 안개 칸 수 (옆 · 뒤 / 카메라 쪽)
+  const FOG_PAD = 15, FOG_PAD_NEAR = 4, FOG_PAD_SIDE = 44; // 바깥 안개 칸 수 (뒤 / 카메라 쪽 / 옆). 옆은 원근이 세서 뒤 줄 바깥까지 화면에 보이니 넓게
   function buildFog() {
     const [RW, RD] = dimsR();
     const c = fog.c;
-    c.width = RW + FOG_PAD * 2; c.height = RD + FOG_PAD + FOG_PAD_NEAR;
+    c.width = RW + FOG_PAD_SIDE * 2; c.height = RD + FOG_PAD + FOG_PAD_NEAR;
     const g = c.getContext('2d');
     const img = g.createImageData(c.width, c.height);
     for (let py = 0; py < c.height; py++) {
       for (let px = 0; px < c.width; px++) {
-        const rx = px - FOG_PAD, rz = py - FOG_PAD;
+        const rx = px - FOG_PAD_SIDE, rz = py - FOG_PAD;
         const inside = rx >= 0 && rz >= 0 && rx < RW && rz < RD;
         const [x, z] = inside ? fromR(rx, rz) : [0, 0];
         const i = (py * c.width + px) * 4;
@@ -417,7 +488,8 @@ const View = (() => {
     const f = flat.getContext('2d');
     f.imageSmoothingEnabled = true;
     f.drawImage(c, 0, 0, flat.width, flat.height);
-    fog.img = warp(flat, -FOG_PAD * TW, -FOG_PAD * TD, FOG_K, FOG_K);
+    fadeTop(f, (FOG_PAD - BACK_ROWS) * TD / FOG_K, (TD * FADE_ROWS) / FOG_K, flat.width);
+    fog.img = warp(flat, -FOG_PAD_SIDE * TW, -FOG_PAD * TD, FOG_K, FOG_K, -TD * BACK_ROWS); // 땅이 끝나는 줄 뒤로는 안 그림 (배경 층 위에 어두운 띠가 뜨지 않게)
     // 가림막: 같은 모양, 진하게
     const mc = document.createElement('canvas');
     mc.width = c.width; mc.height = c.height;
@@ -430,7 +502,9 @@ const View = (() => {
     mf.imageSmoothingEnabled = true;
     mf.filter = 'blur(6px)';
     mf.drawImage(mc, 0, 0, mflat.width, mflat.height);
-    fog.mask = warp(mflat, -FOG_PAD * TW, -FOG_PAD * TD, FOG_K, FOG_K);
+    mf.filter = 'none';
+    fadeTop(mf, (FOG_PAD - BACK_ROWS) * TD / FOG_K, (TD * FADE_ROWS) / FOG_K, mflat.width);
+    fog.mask = warp(mflat, -FOG_PAD_SIDE * TW, -FOG_PAD * TD, FOG_K, FOG_K, -TD * BACK_ROWS);
     fog.vis = G.vis; fog.rot = rot;
   }
   function roundRect(g, x, y, w, h, r) {
@@ -454,7 +528,7 @@ const View = (() => {
   // ── 소품 (칸 가로 배수). 판때기라 회전해도 같은 그림 ──
   const PROP_W = { S: 1.12, C: 0.86, W: 1.25, T: 1.3, X: 1.12, M: 1.0, G: 1.2, R: 3.0, H: 1.25 };
   // ── 맵 바깥 경치 (세계 좌표, 맵 밖 칸). 임무마다 같은 모양이 나오게 맵 글자로 씨앗
-  const BACK_ROWS = 7; // 맵 뒤로 땅이 이어지는 줄 수
+  const BACK_ROWS = 14; // 맵 뒤 · 옆으로 땅과 경치가 이어지는 줄 수 (최대로 줌 아웃해도 빈 땅 띠가 안 보이게 7 → 14)
   let deco = [], decoKey = '';
   function buildDeco() {
     const w = G.world;
@@ -572,14 +646,15 @@ const View = (() => {
       tw.fn(k);
       if (k >= 1) { tweens.splice(i, 1); tw.done(); }
     }
-    const pan = 520 * rdt / cam.z;
-    if (keys.a || keys.arrowleft) { cam.x -= pan; cam.tx = null; }
-    if (keys.d || keys.arrowright) { cam.x += pan; cam.tx = null; }
-    if (keys.w || keys.arrowup) { cam.y -= pan; cam.ty = null; }
-    if (keys.s || keys.arrowdown) { cam.y += pan; cam.ty = null; }
-    if (cam.tx != null) { const k = Math.min(1, rdt * (cine.on ? 7 : 5)); cam.x += (cam.tx - cam.x) * k; cam.y += (cam.ty - cam.y) * k; }
+    const pan = ((keys.ShiftLeft || keys.ShiftRight) ? 1100 : 520) * rdt / zEff; // Shift = 빠르게
+    // 손으로 움직이면 따라가던 목표(tx · ty)를 같이 버림. 하나만 버리면 남은 쪽 때문에 cam.y 가 null(=0, 맵 맨 위)로 끌려감
+    const mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+    const my = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
+    if (mx || my) { cam.x += mx * pan; cam.y += my * pan; cam.tx = cam.ty = null; }
+    if (cam.tx != null && cam.ty != null) { const k = Math.min(1, rdt * (cine.on ? 7 : 5)); cam.x += (cam.tx - cam.x) * k; cam.y += (cam.ty - cam.y) * k; }
     if (cam.tz != null) { cam.z += (cam.tz - cam.z) * Math.min(1, rdt * 6); if (Math.abs(cam.tz - cam.z) < 0.002) { cam.z = cam.tz; cam.tz = null; } }
     clampCam();
+    camPersp(rdt);
     shake = Math.max(0, shake - rdt * 30);
     shx = (Math.random() - 0.5) * shake + kick.x; shy = (Math.random() - 0.5) * shake + kick.y;
     kick.x *= Math.pow(0.0005, rdt); kick.y *= Math.pow(0.0005, rdt);
@@ -613,19 +688,38 @@ const View = (() => {
 
     // ── 맵 뒤 층: 먼 도시 → 먼 언덕 → 먼 들판 → 가까운 들판 (뒤일수록 작고 느리고 흐림) ──
     // 각 층 아래쪽은 앞 층 윗부분 뒤에 숨음. 가까운 들판 아래 띠(맵 바닥 색)는 맵 바닥 윗끝 흐림 뒤로 들어감
-    const edgeY = (projY(-TD * (BACK_ROWS - 1.2)) - cam.y) * cam.z + H / 2;
-    let bottom = edgeY + 4 * cam.z;
+    // 층 크기 · 흐름 = 맵 뒤 끝 땅이 지금 화면에 보이는 배율에 맞춤 (카메라 원근이 세지면 뒤 끝이 작아지니 층도 같이 작아짐)
+    const efy = -TD * (BACK_ROWS - FADE_ROWS + 0.3), sEdge = scaleAt(efy), s0Edge = persp.F0 / (persp.F0 + persp.front - efy);
+    const lz = zEff * sEdge / s0Edge, camFx = unproj(cam.x, cam.y).fx;
+    const edgeY = (projY(efy) - cam.y) * zEff + H / 2;
+    let bottom = edgeY + 4 * lz;
     const stack = [];
     for (const L of BACK_LAYERS) {
       const im = IM['bd_' + L.img];
       if (!im) continue;
-      const k = L.k * cam.z, h = im.height * k;
+      const k = L.k * lz, h = im.height * k;
       stack.push({ L, im, k, bottom });
       bottom -= h * L.hide;
     }
+    // 하늘 여러 겹 (뒤 → 앞): 먼 하늘(연기 기둥) → 폭격기 → 가까운 구름(크고 빠름) → 지평선 연기 띠. 겹마다 카메라 따라 움직이는 정도 · 바람 흐름이 다름
+    // 맨 뒤 층 아래쪽 연무에 밑동이 묻히게, 화면 위끝까지 늘 덮이게
+    if (IM.sky && stack.length) {
+      const last = stack[stack.length - 1], skyBot = last.bottom - last.im.height * last.k * 0.35;
+      const ks = Math.max(0.42 * lz, (skyBot + 8) / (IM.sky.height * 0.9)), sp = zEff * sEdge;
+      const wind = (v, rate) => -G.t * v / (rate * sp); // 화면 px/초 → layer 의 shift
+      layer(IM.sky, 0.05, skyBot + IM.sky.height * ks * 0.1, ks, 1, wind(2, 0.05), camFx, sp);
+      drawBomber(skyBot, ks);
+      if (IM.skyClouds) {
+        const kc = ks * 1.55;
+        // 위끝을 먼 하늘 위끝보다 조금 위에 → 구름 아랫단이 먼 하늘 가운데쯤에 걸림
+        layer(IM.skyClouds, 0.11, skyBot - IM.sky.height * ks * 0.9 + IM.skyClouds.height * kc * 0.92, kc, 0.9, 700 + wind(7, 0.11), camFx, sp);
+      }
+      const band = smokeBand();
+      if (band) layer(band, 0.22, skyBot + band.height * ks * 0.35, ks * 1.2, 0.55, wind(12, 0.22), camFx, sp);
+    }
     for (let i = stack.length - 1; i >= 0; i--) {
       const { L, im, k, bottom: b } = stack[i];
-      layer(im, L.rate, b, k, L.alpha, rot * (im.width / 4) + L.shift);
+      layer(im, L.rate, b, k, L.alpha, rot * (im.width / 4) + L.shift, camFx, zEff * sEdge);
       // 공기 원근: 뒤 층 위에 하늘색을 얇게 덮어 더 멀어 보이게
       if (L.haze) { ctx.fillStyle = `rgba(181,173,149,${L.haze})`; ctx.fillRect(0, b - im.height * k - 2, W, im.height * k + 2); }
     }
@@ -633,13 +727,14 @@ const View = (() => {
     // ── 맵: 바닥 · 자국 · 시야 안개 · 표시 ──
     const M = camMatrix();
     ctx.setTransform(M);
-    ctx.drawImage(ground.c, ground.x, ground.y);
+    drawWarp(ctx, ground, M);
     for (const s of stains) drawStain(s);
     drawGroundMarks();
     // 시야 밖 어둡게: 칸마다 1px 짜리 그림을 늘리고 원근으로 굽혀 경계를 부드럽게 (네모 칸이 안 보이게)
     if (fog.vis !== G.vis || fog.rot !== rot) buildFog();
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(fog.img.c, fog.img.x, fog.img.y);
+    drawWarp(ctx, fog.img, M);
+    airHaze();
     overlays();
     // 소품 · 병사 · 조각을 화면 깊이 순으로
     const list = [];
@@ -681,6 +776,25 @@ const View = (() => {
     if (fade > 0) { ctx.fillStyle = `rgba(30,26,20,${fade * 0.7})`; ctx.fillRect(0, 0, W, H); }
     drawScreenFx();
   }
+  // 공기 원근 (바닥): 먼 줄일수록 하늘색 연무가 짙고, 카메라 바로 앞 줄은 살짝 어둡고 진하게 → 깊이가 색으로도 보임
+  // 병사 · 표시는 이 위에 그려서 또렷하게 남김 (소품은 bakedProp 의 먼 정도로 따로 흐려짐)
+  const HAZE = { far: 0.42, near: 0.2 };
+  function airHaze() {
+    const [RW, RD] = dimsR();
+    const x0 = proj(-BACK_ROWS * TW, 0).x - W, x1 = proj((RW + BACK_ROWS) * TW, 0).x + W;
+    const yBack = projY(-TD * BACK_ROWS), yMid = projY(RD * TD * 0.55), yNear = projY(RD * TD), yEnd = projY((RD + 3) * TD);
+    const g = ctx.createLinearGradient(0, yBack, 0, yMid);
+    g.addColorStop(0, `rgba(181,173,149,${HAZE.far})`);
+    g.addColorStop(0.45, `rgba(181,173,149,${HAZE.far * 0.45})`);
+    g.addColorStop(1, 'rgba(181,173,149,0)');
+    ctx.fillStyle = g; ctx.fillRect(x0, yBack, x1 - x0, yMid - yBack);
+    const n = ctx.createLinearGradient(0, projY(RD * TD * 0.75), 0, yEnd);
+    n.addColorStop(0, 'rgba(34,26,16,0)');
+    n.addColorStop(0.5, `rgba(34,26,16,${HAZE.near * 0.5})`);
+    n.addColorStop(1, `rgba(34,26,16,${HAZE.near})`);
+    ctx.fillStyle = n; ctx.fillRect(x0, projY(RD * TD * 0.75), x1 - x0, yEnd - projY(RD * TD * 0.75));
+  }
+
   function drawScreenFx() {
     // 늘 깔리는 옅은 비네트 (가장자리 어둡게 → 가운데로 시선)
     const vg = ctx.createRadialGradient(W / 2, H * 0.48, Math.min(W, H) * 0.35, W / 2, H * 0.5, Math.max(W, H) * 0.75);
@@ -711,9 +825,48 @@ const View = (() => {
   ];
 
   // 가로로 이어 붙이는 층 하나. bottomY = 화면 px (층 아래 끝)
-  function layer(im, rate, bottomY, k, alpha, shift) {
+  // 지평선 연기 띠: 안개 구름 무늬를 가로로 길게, 위 · 아래 끝은 투명 (한 번 만들어 둠)
+  let smokeBandC = null;
+  function smokeBand() {
+    if (smokeBandC) return smokeBandC;
+    if (!fog.cloud) fog.cloud = cloudTex();
+    const c = document.createElement('canvas');
+    c.width = 1024; c.height = 150;
+    const g = c.getContext('2d');
+    const pat = g.createPattern(fog.cloud, 'repeat');
+    pat.setTransform(new DOMMatrix().scale(2, 0.75));
+    g.fillStyle = pat; g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(70,60,48,0.55)'; g.fillRect(0, 0, c.width, c.height); // 흙빛 포연
+    g.globalCompositeOperation = 'destination-in';
+    const gr = g.createLinearGradient(0, 0, 0, c.height);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0.2)');
+    g.fillStyle = gr; g.fillRect(0, 0, c.width, c.height);
+    return (smokeBandC = c);
+  }
+  // 폭격기 편대: 가끔 먼 하늘을 가로질러 감 (가까운 구름 뒤로 지나감). 화면 px 로 움직임
+  const bomber = { t: -8, dur: 26, y: 0.3, dir: 1, n: 3 };
+  function drawBomber(skyBot, ks) {
+    const im = IM.bomber;
+    if (!im) return;
+    bomber.t += 1 / 60;
+    if (bomber.t > bomber.dur) Object.assign(bomber, { t: -20 - Math.random() * 25, y: 0.2 + Math.random() * 0.35, dir: Math.random() < 0.5 ? 1 : -1, n: 2 + Math.floor(Math.random() * 3) });
+    if (bomber.t < 0) return;
+    const k = bomber.t / bomber.dur, s = Math.max(0.5, ks * 1.1), w = im.width * s, h = im.height * s;
+    const top = skyBot - IM.sky.height * ks * 0.9, y0 = top + (skyBot - top) * bomber.y;
+    const x0 = bomber.dir > 0 ? -w * 3 + (W + w * 6) * k : W + w * 3 - (W + w * 6) * k;
+    ctx.globalAlpha = 0.8;
+    for (let i = 0; i < bomber.n; i++) {
+      const x = x0 - bomber.dir * i * w * 0.9, y = y0 + (i % 2 ? h * 1.2 : 0) + i * h * 0.3;
+      ctx.save(); ctx.translate(x, y); if (bomber.dir < 0) ctx.scale(-1, 1);
+      ctx.drawImage(im, -w / 2, -h / 2, w, h); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // camX · speed = 층이 따라 움직일 카메라 가로 자리 · 그 배율 (맵 뒤 층은 뒤 끝 땅 배율, 앞 가림 층은 화면 배율)
+  function layer(im, rate, bottomY, k, alpha, shift, camX = cam.x, speed = zEff) {
     const w = im.width * k, h = im.height * k;
-    let off = (W / 2 - (cam.x + shift) * rate * cam.z) % w;
+    let off = (W / 2 - (camX + shift) * rate * speed) % w;
     if (off > 0) off -= w;
     ctx.globalAlpha = alpha;
     for (let x = off; x < W; x += w) ctx.drawImage(im, x, bottomY - h, w + 1, h);
@@ -928,6 +1081,7 @@ const View = (() => {
     const v = viewOf(u);
     const k = bodyK(u);
     if (v.view === 'side') return { x: x + (v.flip ? -1 : 1) * UNIT_H * 0.55 * s, y: y - UNIT_H * 0.55 * k * s };
+    if (u.st.throwK) return { x: x + (v.view === 'front' ? -1 : 1) * UNIT_H * 0.2 * s, y: y - UNIT_H * 0.95 * s }; // 치켜든 손
     return { x: x + (v.view === 'front' ? 8 : -8) * s, y: y - UNIT_H * (v.view === 'front' ? 0.5 : 0.75) * k * s };
   }
   // 몸 높이 배율: 웅크리면 낮아지고, 쓰러지면 바닥
@@ -1131,7 +1285,7 @@ const View = (() => {
     const p = d.V.parts[part], m = d.M[part];
     const inv = camMatrix().inverse();
     const c = inv.transformPoint(m.transformPoint(new DOMPoint(p.x + p.w / 2, p.y + p.h / 2)));
-    const s = cam.z * DPR;
+    const s = zEff * DPR;
     const R = u._rig || rigOf(u);
     const fi = part === 'head' && u.look && u.look.face != null ? 'head_f' + u.look.face : null;
     const dir = u._view && u._view.flip ? 1 : -1;
@@ -1229,14 +1383,14 @@ const View = (() => {
 
   function focus(u) {
     const p = P(u.px != null ? u.px : u.x, u.pz != null ? u.pz : u.z);
-    cam.tx = p.x; cam.ty = p.y - Math.max(UNIT_H * 0.4, 95 / cam.z);
+    cam.tx = p.x; cam.ty = p.y - Math.max(UNIT_H * 0.4, 95 / zEff);
     clampCam();
   }
   function focusPair(a, b) {
     const ax = a.px != null ? a.px : a.x, az = a.pz != null ? a.pz : a.z;
     const bx = b.px != null ? b.px : b.x, bz = b.pz != null ? b.pz : b.z;
     const p = P((ax + bx) / 2, (az + bz) / 2);
-    cam.tx = p.x; cam.ty = p.y - Math.max(UNIT_H * 0.4, 95 / cam.z);
+    cam.tx = p.x; cam.ty = p.y - Math.max(UNIT_H * 0.4, 95 / zEff);
     clampCam();
   }
 
@@ -1245,18 +1399,22 @@ const View = (() => {
   let drag = null;
   function bindInput() {
     window.addEventListener('resize', resize);
+    // 키 자리(e.code)로 기억: 한글 입력 상태면 e.key 가 'ㅈ' · 'Process' 로 와서 W 를 뗀 걸 못 알아채 화면이 계속 올라감
     window.addEventListener('keydown', (e) => {
-      const k = e.key.toLowerCase();
-      keys[k] = true;
+      keys[e.code] = true;
       // 시점 회전(Q/E)은 없앰: 늘 쥐 쪽(앞)에서 적(뒤)을 바라보는 고정 시점
       UI.key(e);
     });
-    window.addEventListener('keyup', (e) => (keys[e.key.toLowerCase()] = false));
+    window.addEventListener('keyup', (e) => (keys[e.code] = false));
+    // 창을 벗어나면 keyup 이 안 옴 (알트탭 · 다른 창 클릭) → 눌린 키 전부 풀기
+    const releaseKeys = () => { for (const k in keys) keys[k] = false; drag = null; };
+    window.addEventListener('blur', releaseKeys);
+    document.addEventListener('visibilitychange', releaseKeys);
     cv.addEventListener('mousemove', (e) => {
       if (drag) {
-        cam.x = drag.cx - (e.clientX - drag.x) / cam.z;
-        cam.y = drag.cy - (e.clientY - drag.y) / cam.z;
-        cam.tx = null;
+        cam.x = drag.cx - (e.clientX - drag.x) / zEff;
+        cam.y = drag.cy - (e.clientY - drag.y) / zEff;
+        cam.tx = cam.ty = null;
         clampCam();
         return;
       }
@@ -1267,7 +1425,8 @@ const View = (() => {
     window.addEventListener('mouseup', () => (drag = null));
     cv.addEventListener('contextmenu', (e) => { e.preventDefault(); UI.cancel(); });
     cv.addEventListener('click', (e) => { if (G.world) UI.click(pickTile(e.clientX, e.clientY), e); });
-    cv.addEventListener('wheel', (e) => { cam.z = Math.max(0.6, Math.min(2.2, cam.z * (e.deltaY > 0 ? 0.9 : 1.1))); clampCam(); e.preventDefault(); }, { passive: false });
+    // 휠 줌: 목표 줌(tz)만 바꾸고 프레임마다 부드럽게 다가감 (한 번에 툭 바뀌면 원근도 툭 바뀜)
+    cv.addEventListener('wheel', (e) => { cam.tz = Math.max(0.6, Math.min(2.2, (cam.tz != null ? cam.tz : cam.z) * (e.deltaY > 0 ? 0.9 : 1.1))); e.preventDefault(); }, { passive: false });
   }
 
   function unitAtScreen(mx, my) {

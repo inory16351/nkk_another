@@ -18,7 +18,7 @@ const fromWeb = (ref) => path.normalize(path.join(WEB, ref));
 const sb = { window: {} };
 vm.createContext(sb);
 for (const f of ['art/out/assets.js', 'art/rigs.js', 'art/out/deco.js', 'art/out/fx.js', 'art/out/icons.js']) vm.runInContext(read(path.join(ROOT, f)), sb);
-const refs = new Set(['../art/nkk/cat_boss_fuhrer.png', '../art/out/lobby_bg.jpg', '../art/audio/lobby.mp3', '../art/audio/battle.mp3']);
+const refs = new Set(['../art/nkk/cat_boss_fuhrer.png', '../art/out/lobby_bg.jpg', '../art/out/sky.jpg', '../art/out/sky_clouds.png', '../art/out/bomber.png', '../art/audio/lobby.mp3', '../art/audio/battle.mp3']);
 for (const group of Object.values(sb.window.ART)) for (const a of Object.values(group)) refs.add('../art/out/' + a.img);
 for (const a of Object.values(sb.window.DECO || {})) refs.add('../art/out/' + a.img);
 for (const fr of Object.values(sb.window.FXART || {})) for (const f of fr) refs.add('../art/out/' + f);

@@ -115,8 +115,8 @@ const UI = (() => {
     if (k === ' ' && G.sel) { View.focus(G.sel); e.preventDefault(); return; }
     if (!G.sel || G.turn !== 'rat') return;
     const list = abilitiesOf(G.sel);
-    if (k === 'r') return useAbility('reload');
-    const n = parseInt(k, 10);
+    if (e.code === 'KeyR') return useAbility('reload'); // 한글 입력 상태(ㄱ)에서도
+    const n = /^Digit\d$/.test(e.code) ? +e.code[5] : parseInt(k, 10);
     if (n >= 1 && n <= list.length) useAbility(list[n - 1].ab);
   }
 

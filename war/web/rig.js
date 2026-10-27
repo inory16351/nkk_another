@@ -34,8 +34,11 @@ const Rig = (() => {
         for (let f = 0; f < (p.faces || 0); f++) jobs.push(loadImage(`${base}parts/${vn}/head_f${f}.png`).then((im) => (img[vn]['head_f' + f] = im)));
       }
       if (V.crouch) jobs.push(loadImage(base + V.crouch.img).then((im) => (img[vn].crouch = im)));
+      (V.throw || []).forEach((f, i) => jobs.push(loadImage(base + f.img).then((im) => (img[vn]['throw' + i] = im))));
     }
     await Promise.all(jobs);
+    // 앞 웅크림: 목 위로 삐죽 나온 총 끝만 따로 → 머리 위에 한 번 더 그림 (총이 얼굴 앞에 오게)
+    for (const [vn, V] of Object.entries(data.views)) if (vn === 'front' && img[vn].crouch) img[vn].crouchTop = overNeck(img[vn].crouch, V.crouch);
     // 눈 옆 털 색 (표정 바꿀 때 점을 덮는 색)
     const fur = {};
     for (const vn of ['side', 'front']) {
@@ -55,6 +58,39 @@ const Rig = (() => {
     const A = (window.ART || {})[kind] || {};
     await Promise.all(Object.entries(A).map(([n, a]) => loadImage('../art/out/' + a.img).then((im) => (cuts[n] = { ...a, im }))));
     return (loaded[sp] = { data, img, fur, cuts, sp, kind });
+  }
+
+  // 웅크린 몸 그림에서 목보다 위에 있는 덩어리 중 목(살색 토막)에 안 붙은 것만 남긴 그림. 없으면 null
+  function overNeck(im, C) {
+    const w = im.width, h = im.height, sx = w / C.w, sy = h / C.h;
+    const nx = Math.round((C.neck[0] - C.x) * sx), cut = Math.round((C.neck[1] - C.y) * sy) - 6;
+    if (cut <= 0) return null;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    let d;
+    try { d = g.getImageData(0, 0, w, cut); } catch (err) { return null; } // file:// 에선 못 읽음
+    const A = (x, y) => d.data[(y * w + x) * 4 + 3] > 40;
+    const seen = new Uint8Array(w * cut);
+    // 목 토막: 자른 줄에서 목 x 에 가장 가까운 불투명 점부터 퍼짐 → 지움
+    const stack = [];
+    for (let r = 0; r < w; r++) {
+      if (nx - r >= 0 && A(nx - r, cut - 1)) { stack.push(nx - r, cut - 1); break; }
+      if (nx + r < w && A(nx + r, cut - 1)) { stack.push(nx + r, cut - 1); break; }
+    }
+    while (stack.length) {
+      const y = stack.pop(), x = stack.pop();
+      if (x < 0 || y < 0 || x >= w || y >= cut || seen[y * w + x] || !A(x, y)) continue;
+      seen[y * w + x] = 1;
+      stack.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+    }
+    let any = false;
+    for (let i = 0; i < w * cut; i++) { if (seen[i]) d.data[i * 4 + 3] = 0; else if (d.data[i * 4 + 3]) any = true; }
+    if (!any) return null;
+    g.clearRect(0, 0, w, h);
+    g.putImageData(d, 0, 0);
+    return c;
   }
 
   // ── 동작: (보기, 시간, 상태) → 각도 · 루트 ──
@@ -180,7 +216,32 @@ const Rig = (() => {
     const B = o.baseR || R; // 머리 · 웅크림을 가진 병종 기본 리그
     // 웅크린 몸: 병종 것 → 없으면 같은 종 기본 리그 것 (머리는 늘 병종 것)
     const CB = B.data.views[o.view].crouch ? B : loaded[R.kind] && loaded[R.kind].data.views[o.view].crouch ? loaded[R.kind] : B;
-    const C = CB.data.views[o.view].crouch, st = o.st || {};
+    const st = o.st || {};
+    // 앞 · 뒤 던지기: 머리 없는 던지기 몸 그림(들어올림 → 던짐) + 목에 머리 파츠
+    const TB = [R, B, loaded[R.kind]].find((r) => r && r.data.views[o.view].throw && r.img[o.view].throw1);
+    if (st.throwK && o.view !== 'side' && TB && st.death == null) {
+      const tk = st.throwK, f = tk < 0.5 ? 0 : 1, T = TB.data.views[o.view].throw[f];
+      // 들어올리며 뒤로 젖힘 → 던지며 앞으로 숙임 (앞모습: 앞 = 아래로 숙임, 뒷모습도 같은 방향 느낌)
+      const lean = f ? Math.sin((tk - 0.5) * 2 * Math.PI) * 5 : -Math.sin(tk * Math.PI) * 3;
+      const hd = B.data.views[o.view].parts.head, him = (o.faceIdx != null && B.img[o.view]['head_f' + o.faceIdx]) || B.img[o.view].head;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(o.flip ? -k : k, k);
+      ctx.translate(-V.ground[0], -V.ground[1]);
+      if (o.alpha != null) ctx.globalAlpha = o.alpha;
+      ctx.translate(V.ground[0], V.ground[1]); ctx.rotate(rad(lean * 0.3)); ctx.translate(-V.ground[0], -V.ground[1]);
+      ctx.drawImage(TB.img[o.view]['throw' + f], T.x, T.y, T.w, T.h);
+      ctx.translate(T.neck[0], T.neck[1] + Math.abs(lean));
+      ctx.rotate(rad(lean));
+      ctx.translate(-hd.pivot[0], -hd.pivot[1]);
+      if (o.tint) ctx.filter = o.tint;
+      ctx.drawImage(him, hd.x, hd.y, hd.w, hd.h);
+      ctx.filter = 'none';
+      if (o.face && !(SPECIES[R.kind].noExpr || []).includes(o.faceIdx)) drawFace(ctx, B, o.view, o.face);
+      ctx.restore();
+      return null;
+    }
+    const C = CB.data.views[o.view].crouch;
     if (C && CB.img[o.view].crouch && (st.crouch || 0) > 0.55 && st.death == null) {
       const br = Math.sin((o.t || 0) * 2.2 + (st.seed || 0));
       const hv = C.head || o.view; // 머리 파츠 시점
@@ -191,6 +252,7 @@ const Rig = (() => {
       ctx.translate(-V.ground[0] - (st.hit || 0) * 6, -V.ground[1]);
       if (o.alpha != null) ctx.globalAlpha = o.alpha;
       ctx.drawImage(CB.img[o.view].crouch, C.x, C.y + br * 1.2, C.w, C.h);
+      const body = ctx.getTransform(), top = CB.img[o.view].crouchTop;
       ctx.translate(C.neck[0], C.neck[1] + br * 1.6 + (st.hit || 0) * 4);
       ctx.rotate(rad(br * 0.8 - (st.hit || 0) * 6));
       ctx.translate(-hd.pivot[0], -hd.pivot[1]);
@@ -198,6 +260,7 @@ const Rig = (() => {
       ctx.drawImage(him, hd.x, hd.y, hd.w, hd.h);
       ctx.filter = 'none';
       if (o.face && !(SPECIES[R.kind].noExpr || []).includes(o.faceIdx)) drawFace(ctx, B, hv, o.face);
+      if (top) { ctx.setTransform(body); ctx.drawImage(top, C.x, C.y + br * 1.2, C.w, C.h); }
       ctx.restore();
       return null;
     }
